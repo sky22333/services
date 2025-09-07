@@ -1,0 +1,258 @@
+html {
+    background-color: #EFF4F9;
+    color: black;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    color: black;
+    font-family: "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, "Roboto",
+    "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
+    sans-serif;
+    background-color: #EFF4F9;
+}
+
+#root {
+    height: 100vh;
+    background-color: #EFF4F9;
+    overflow: hidden;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+.app-container {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: #EFF4F9;
+    color: black;
+}
+
+.main-content {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    padding: 12px;
+    gap: 12px;
+}
+
+.content-area {
+    flex: 1;
+    overflow-y: auto;
+    background-color: rgba(255, 255, 255, 0.7);
+    border-radius: 10px;
+    padding: 16px;
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.header {
+    height: 56px;
+    background-color: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(30px);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.status-bar {
+    height: 32px;
+    background-color: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(20px);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    font-size: 12px;
+    color: #666;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* Win11风格按钮样式 */
+.win11-button {
+    border-radius: 8px !important;
+    transition: all 0.1s ease !important;
+    border: none !important;
+    font-weight: 400 !important;
+}
+
+.win11-button:hover {
+    transform: scale(1.02);
+}
+
+.win11-button:active {
+    transform: scale(0.98);
+}
+
+/* Win11风格输入框 */
+.win11-input {
+    border-radius: 8px !important;
+    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+    background-color: rgba(255, 255, 255, 0.9) !important;
+    transition: all 0.2s ease !important;
+}
+
+.win11-input:focus {
+    border-color: #0078d4 !important;
+    box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.2) !important;
+}
+
+/* Win11风格表格 - 紧凑版本 */
+.win11-table {
+    border-radius: 10px !important;
+    background-color: rgba(255, 255, 255, 0.9) !important;
+    backdrop-filter: blur(20px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+    overflow: hidden !important;
+    font-size: 14px !important;
+}
+
+.win11-table-header {
+    background-color: rgba(249, 249, 249, 0.9) !important;
+    backdrop-filter: blur(30px) !important;
+    height: 40px !important;
+}
+
+.win11-table-row {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
+    transition: background-color 0.1s ease !important;
+    height: 48px !important;
+}
+
+.win11-table-row:hover {
+    background-color: rgba(0, 120, 212, 0.05) !important;
+}
+
+.win11-table-row:last-child {
+    border-bottom: none !important;
+}
+
+/* 紧凑表格单元格 */
+.win11-table td, .win11-table th {
+    padding: 8px 12px !important;
+}
+
+/* Win11风格对话框 */
+.win11-dialog {
+    border-radius: 16px !important;
+    backdrop-filter: blur(40px) !important;
+    background-color: rgba(255, 255, 255, 0.95) !important;
+    border: 1px solid rgba(255, 255, 255, 0.4) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Win11风格徽章 */
+.win11-badge {
+    border-radius: 12px !important;
+    font-weight: 500 !important;
+    font-size: 12px !important;
+}
+
+/* Win11风格菜单 */
+.win11-menu {
+    border-radius: 12px !important;
+    backdrop-filter: blur(40px) !important;
+    background-color: rgba(255, 255, 255, 0.95) !important;
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1) !important;
+}
+
+.win11-menu-item {
+    border-radius: 6px !important;
+    margin: 2px 4px !important;
+    transition: background-color 0.1s ease !important;
+}
+
+.win11-menu-item:hover {
+    background-color: rgba(0, 120, 212, 0.1) !important;
+}
+
+/* 空状态样式 - 紧凑版本 */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    background-color: rgba(255, 255, 255, 0.5);
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    border: 2px dashed rgba(0, 120, 212, 0.3);
+    margin: 16px 0;
+}
+
+.empty-state-icon {
+    font-size: 36px;
+    color: rgba(0, 120, 212, 0.4);
+    margin-bottom: 12px;
+}
+
+.empty-state-text {
+    color: #666;
+    font-size: 14px;
+    text-align: center;
+    line-height: 1.4;
+}
+
+/* 服务状态指示器 */
+.service-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.service-status.running {
+    background-color: rgba(16, 124, 16, 0.1);
+    color: #107c10;
+}
+
+.service-status.stopped {
+    background-color: rgba(96, 94, 92, 0.1);
+    color: #605e5c;
+}
+
+.service-status.error {
+    background-color: rgba(196, 43, 28, 0.1);
+    color: #c42b1c;
+}
+
+/* 动画效果 */
+@keyframes slideInFromRight {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.slide-in {
+    animation: slideInFromRight 0.3s ease;
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.3);
+}
