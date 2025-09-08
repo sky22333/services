@@ -32,7 +32,10 @@ import {
   Delete24Regular,
   DocumentFolder24Regular,
   Settings24Regular,
-  ArrowClockwise24Regular
+  ArrowClockwise24Regular,
+  BuildingMultiple24Regular,
+  Document24Regular,
+  Folder24Regular
 } from '@fluentui/react-icons';
 import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime';
 import './App.css';
@@ -48,7 +51,11 @@ import {
   SetAutoStart,
   GetAutoStartStatus,
   SetServiceAutoStart,
-  RestartAsAdmin
+  RestartAsAdmin,
+  AddPathVariable,
+  OpenSystemEnvironmentSettings,
+  ValidatePathExists,
+  DiagnoseEnvironmentAccess
 } from "../wailsjs/go/main/App";
 
 // 服务行组件，使用memo优化
@@ -146,10 +153,13 @@ function App() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isEnvDialogOpen, setIsEnvDialogOpen] = useState(false);
   const [serviceToDelete, setServiceToDelete] = useState(null);
   const [adminPrivileges, setAdminPrivileges] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
   const [showAdminWarning, setShowAdminWarning] = useState(false);
+  const [envPath, setEnvPath] = useState('');
+  const [isAddingEnv, setIsAddingEnv] = useState(false);
   const [newService, setNewService] = useState({
     name: '',
     exePath: '',
@@ -337,6 +347,99 @@ function App() {
     }
   }, [showToast]);
 
+  const handleSelectEnvFile = useCallback(async () => {
+    try {
+      const filePath = await SelectFile();
+      if (filePath) {
+        setEnvPath(filePath);
+      }
+    } catch (error) {
+      showToast('错误', '选择文件失败: ' + error, 'error');
+    }
+  }, [showToast]);
+
+  const handleSelectEnvDirectory = useCallback(async () => {
+    try {
+      const dirPath = await SelectDirectory();
+      if (dirPath) {
+        setEnvPath(dirPath);
+      }
+    } catch (error) {
+      showToast('错误', '选择目录失败: ' + error, 'error');
+    }
+  }, [showToast]);
+
+  const handleAddEnvironmentVariable = useCallback(async () => {
+    if (!envPath.trim()) {
+      showToast('验证错误', '请输入或选择文件路径', 'error');
+      return;
+    }
+
+    setIsAddingEnv(true);
+    try {
+      // 验证路径是否存在
+      const exists = await ValidatePathExists(envPath);
+      if (!exists) {
+        showToast('验证错误', '指定的路径不存在', 'error');
+        return;
+      }
+
+      // 添加到PATH环境变量
+      await AddPathVariable(envPath);
+      showToast('成功', 'PATH环境变量添加成功！新打开的命令行窗口将生效');
+      
+      // 关闭对话框并清空输入
+      setIsEnvDialogOpen(false);
+      setEnvPath('');
+    } catch (error) {
+      console.error('环境变量添加失败:', error);
+      
+      // 如果是权限错误，进行诊断
+      if (error.toString().includes('Access is denied') || 
+          error.toString().includes('access denied') ||
+          error.toString().includes('无法读取现有PATH变量')) {
+        
+        try {
+          const diagnosis = await DiagnoseEnvironmentAccess();
+          console.log('权限诊断结果:', diagnosis);
+          
+          let errorMsg = '权限不足，无法修改系统环境变量。\n\n';
+          
+          if (!diagnosis.registry_full) {
+            errorMsg += '• 注册表完整权限: 失败\n';
+          }
+          if (!diagnosis.registry_write) {
+            errorMsg += '• 注册表写入权限: 失败\n';
+          }
+          if (!diagnosis.path_read) {
+            errorMsg += '• PATH变量读取: 失败\n';
+          }
+          
+          errorMsg += '\n请确认：\n';
+          errorMsg += '1. 程序以管理员身份运行\n';
+          errorMsg += '2. 系统未被组策略限制环境变量修改\n';
+          errorMsg += '3. 杀毒软件未阻止注册表访问';
+          
+          showToast('权限诊断', errorMsg, 'error');
+        } catch (diagError) {
+          showToast('错误', '添加环境变量失败: ' + error + '\n诊断失败: ' + diagError, 'error');
+        }
+      } else {
+        showToast('错误', '添加环境变量失败: ' + error, 'error');
+      }
+    } finally {
+      setIsAddingEnv(false);
+    }
+  }, [envPath, showToast]);
+
+  const handleOpenSystemEnvironmentSettings = useCallback(async () => {
+    try {
+      await OpenSystemEnvironmentSettings();
+    } catch (error) {
+      showToast('错误', '打开系统环境变量设置失败: ' + error, 'error');
+    }
+  }, [showToast]);
+
 
   const columns = useMemo(() => [
     { columnKey: 'name', label: '服务名称' },
@@ -362,6 +465,14 @@ function App() {
             {!adminPrivileges && (
               <Badge color="warning" appearance="filled" className="win11-badge">非管理员模式</Badge>
             )}
+            <Button 
+              appearance="subtle" 
+              icon={<BuildingMultiple24Regular />}
+              onClick={() => setIsEnvDialogOpen(true)}
+              className="win11-button"
+            >
+              系统变量
+            </Button>
             <Button 
               appearance="subtle" 
               icon={<Settings24Regular />}
@@ -575,6 +686,123 @@ function App() {
                   className="win11-button"
                 >
                   关闭
+                </Button>
+              </DialogActions>
+            </DialogBody>
+          </DialogSurface>
+        </Dialog>
+
+        {/* 系统变量对话框 */}
+        <Dialog open={isEnvDialogOpen} onOpenChange={(_, data) => setIsEnvDialogOpen(data.open)}>
+          <DialogSurface className="win11-dialog">
+            <DialogBody>
+              <DialogTitle>添加系统环境变量</DialogTitle>
+              <DialogContent>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                  <Field label="文件或目录路径" required>
+                    <div style={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      gap: '12px',
+                      padding: '16px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                      borderRadius: '12px',
+                      backdropFilter: 'blur(10px)',
+                      border: '1px solid #e5e7eb'
+                    }}>
+                      <Text size="300" style={{ color: '#666', marginBottom: '8px' }}>
+                        💡 输入或选择要添加到系统PATH的文件/目录路径
+                      </Text>
+                      
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <Input
+                          value={envPath}
+                          onChange={(e) => setEnvPath(e.target.value)}
+                          placeholder="例如: C:\Program Files\MyApp\bin"
+                          style={{ flex: 1 }}
+                          className="win11-input"
+                        />
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <Tooltip content="选择可执行文件（自动提取目录）" relationship="label">
+                            <Button 
+                              icon={<Document24Regular />} 
+                              onClick={handleSelectEnvFile}
+                              className="win11-button"
+                              size="small"
+                            >
+                              文件
+                            </Button>
+                          </Tooltip>
+                          <Tooltip content="直接选择目录" relationship="label">
+                            <Button 
+                              icon={<Folder24Regular />} 
+                              onClick={handleSelectEnvDirectory}
+                              className="win11-button"
+                              size="small"
+                              appearance="secondary"
+                            >
+                              目录
+                            </Button>
+                          </Tooltip>
+                        </div>
+                      </div>
+                      
+                      <div style={{ 
+                        fontSize: '12px', 
+                        color: '#666',
+                        padding: '8px 12px',
+                        backgroundColor: '#f8f9fa',
+                        borderRadius: '6px',
+                        border: '1px solid #e9ecef'
+                      }}>
+                        <div><strong>选择方式：</strong></div>
+                        <div>• <strong>文件按钮</strong>：选择.exe文件，自动提取其所在目录</div>
+                        <div>• <strong>目录按钮</strong>：直接选择要添加的目录</div>
+                        <div>• <strong>手动输入</strong>：支持文件路径或目录路径</div>
+                        <div><strong>效果：</strong>路径将添加到系统级PATH，新开命令行即可使用</div>
+                      </div>
+                    </div>
+                  </Field>
+
+                  <Field label="操作选项">
+                    <div style={{ 
+                      display: 'flex', 
+                      gap: '12px',
+                      padding: '12px 16px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                      borderRadius: '12px',
+                      backdropFilter: 'blur(10px)'
+                    }}>
+                      <Button
+                        appearance="secondary"
+                        onClick={handleOpenSystemEnvironmentSettings}
+                        className="win11-button"
+                        size="small"
+                      >
+                        打开系统环境变量设置
+                      </Button>
+                    </div>
+                  </Field>
+                </div>
+              </DialogContent>
+              <DialogActions>
+                <Button 
+                  appearance="secondary" 
+                  onClick={() => {
+                    setIsEnvDialogOpen(false);
+                    setEnvPath('');
+                  }}
+                  className="win11-button"
+                >
+                  取消
+                </Button>
+                <Button 
+                  appearance="primary" 
+                  onClick={handleAddEnvironmentVariable}
+                  disabled={!envPath.trim() || isAddingEnv}
+                  className="win11-button"
+                >
+                  {isAddingEnv ? '添加中...' : '添加到PATH'}
                 </Button>
               </DialogActions>
             </DialogBody>

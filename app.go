@@ -23,7 +23,7 @@ type Service struct {
 	WorkingDir string    `json:"workingDir"`
 	Status     string    `json:"status"` // "running", "stopped", "error"
 	PID        int       `json:"pid"`
-	AutoStart  bool      `json:"autoStart"` // 开机自启动
+	AutoStart  bool      `json:"autoStart"`
 	CreatedAt  time.Time `json:"createdAt"`
 	UpdatedAt  time.Time `json:"updatedAt"`
 }
@@ -37,13 +37,15 @@ type ServiceConfig struct {
 }
 
 type App struct {
-	ctx            context.Context
-	serviceManager *WindowsServiceManager
+	ctx               context.Context
+	serviceManager    *WindowsServiceManager
+	environmentManager *EnvironmentManager
 }
 
 func NewApp() *App {
 	return &App{
-		serviceManager: NewWindowsServiceManager(),
+		serviceManager:     NewWindowsServiceManager(),
+		environmentManager: NewEnvironmentManager(),
 	}
 }
 // startup 在应用启动时调用
@@ -356,4 +358,29 @@ func (a *App) SetServiceAutoStart(serviceID string, enabled bool) error {
 // GetServiceAutoStart 获取服务开机自启动状态
 func (a *App) GetServiceAutoStart(serviceID string) bool {
 	return a.serviceManager.GetServiceAutoStart(serviceID)
+}
+
+// AddSystemEnvironmentVariable 添加系统环境变量
+func (a *App) AddSystemEnvironmentVariable(varName, varValue string) error {
+	return a.environmentManager.AddSystemEnvironmentVariable(varName, varValue)
+}
+
+// AddPathVariable 添加PATH环境变量
+func (a *App) AddPathVariable(pathValue string) error {
+	return a.environmentManager.AddPathVariable(pathValue)
+}
+
+// OpenSystemEnvironmentSettings 打开系统环境变量设置
+func (a *App) OpenSystemEnvironmentSettings() error {
+	return a.environmentManager.OpenSystemEnvironmentSettings()
+}
+
+// ValidatePathExists 验证路径是否存在
+func (a *App) ValidatePathExists(path string) bool {
+	return a.environmentManager.ValidatePathExists(path)
+}
+
+// DiagnoseEnvironmentAccess 诊断环境变量访问权限
+func (a *App) DiagnoseEnvironmentAccess() (map[string]interface{}, error) {
+	return a.environmentManager.DiagnoseEnvironmentAccess()
 }
