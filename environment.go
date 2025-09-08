@@ -130,7 +130,7 @@ func (em *EnvironmentManager) broadcastEnvironmentChange() error {
 }
 
 // OpenSystemEnvironmentSettings 打开系统环境变量设置
-func (em *EnvironmentManager) OpenSystemEnvironmentSettings() error 
+func (em *EnvironmentManager) OpenSystemEnvironmentSettings() error {
 	cmd := exec.Command("rundll32.exe", "sysdm.cpl,EditEnvironmentVariables")
 	return cmd.Start()
 }
