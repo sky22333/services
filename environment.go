@@ -119,7 +119,7 @@ func (em *EnvironmentManager) broadcastEnvironmentChange() error {
 		uintptr(unsafe.Pointer(environmentPtr)),
 		uintptr(SMTO_ABORTIFHUNG),
 		uintptr(5000), // 5秒超时
-		0,
+		uintptr(0),
 	)
 
 	if ret == 0 {
