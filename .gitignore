@@ -3,3 +3,4 @@ frontend/dist
 frontend/node_modules
 frontend/wailsjs
 frontend/package.json.md5
+*.exe
