@@ -479,7 +479,7 @@ function App() {
               onClick={() => setIsSettingsDialogOpen(true)}
               className="win11-button"
             >
-              设置
+              应用设置
             </Button>
             <Dialog open={isAddDialogOpen} onOpenChange={(_, data) => setIsAddDialogOpen(data.open)}>
               <DialogTrigger disableButtonEnhancement>
@@ -755,16 +755,15 @@ function App() {
                         borderRadius: '6px',
                         border: '1px solid #e9ecef'
                       }}>
-                        <div><strong>选择方式：</strong></div>
-                        <div>• <strong>文件按钮</strong>：选择.exe文件，自动提取其所在目录</div>
-                        <div>• <strong>目录按钮</strong>：直接选择要添加的目录</div>
-                        <div>• <strong>手动输入</strong>：支持文件路径或目录路径</div>
-                        <div><strong>效果：</strong>路径将添加到系统级PATH，新开命令行即可使用</div>
+                        <div><strong>功能介绍：</strong></div>
+                        <div><strong>说明：</strong>方便快捷的将程序添加到系统变量</div>
+                        <div><strong>使用：</strong>支持手动输入路径，支持选择程序或者选择目录</div>
+                        <div><strong>效果：</strong>快速将路径将添加到系统级PATH，重新打开终端即可使用</div>
                       </div>
                     </div>
                   </Field>
 
-                  <Field label="操作选项">
+                  <Field label="快捷操作">
                     <div style={{ 
                       display: 'flex', 
                       gap: '12px',
@@ -779,7 +778,7 @@ function App() {
                         className="win11-button"
                         size="small"
                       >
-                        打开系统环境变量设置
+                        打开系统环境变量设置界面
                       </Button>
                     </div>
                   </Field>
