@@ -32,7 +32,7 @@ jobs:
         cache-dependency-path: 'frontend/package-lock.json'
     
     - name: Install Wails
-      run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+      run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.10.2
     
     - name: Install frontend dependencies
       run: npm install
