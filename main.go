@@ -52,7 +52,6 @@ func main() {
 			OnSecondInstanceLaunch: func(data options.SecondInstanceData) {
 				runtime.Show(app.ctx)
 				runtime.WindowUnminimise(app.ctx)
-				runtime.BrowserOpenURL(app.ctx, "")
 			},
 		},
 		OnStartup: func(ctx context.Context) {
