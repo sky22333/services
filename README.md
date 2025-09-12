@@ -50,6 +50,6 @@ wails dev
 
 ## 界面预览
 
-![主界面](/.github/demo/1.jpg)
+![主界面](/.github/demo/demo1.jpg)
 
-![添加服务](/.github/demo/2.jpg)
+![添加服务](/.github/demo/demo2.jpg)
