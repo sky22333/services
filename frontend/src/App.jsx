@@ -30,7 +30,6 @@ import {
   Play24Regular,
   Stop24Regular,
   Delete24Regular,
-  DocumentFolder24Regular,
   Settings24Regular,
   ArrowClockwise24Regular,
   BuildingMultiple24Regular,
@@ -511,7 +510,7 @@ function App() {
                             className="win11-input"
                           />
                           <Button 
-                            icon={<DocumentFolder24Regular />} 
+                            icon={<Document24Regular />} 
                             onClick={handleSelectFile}
                             className="win11-button"
                           >
@@ -539,7 +538,7 @@ function App() {
                             className="win11-input"
                           />
                           <Button 
-                            icon={<DocumentFolder24Regular />} 
+                            icon={<Folder24Regular />} 
                             onClick={handleSelectDirectory}
                             className="win11-button"
                           >
