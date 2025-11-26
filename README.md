@@ -27,6 +27,10 @@
 - Windows Server 2016 +
 - WebView2 Runtime (通常已预装)
 
+## 下载和使用
+
+直接下载[releases](https://github.com/sky22333/services/releases)中的`exe`程序使用
+
 ## 构建说明
 
 ### 环境准备
