@@ -33,7 +33,7 @@
 
 ## 构建说明
 
-### 环境准备
+#### 环境准备
 ```bash
 # 安装 Wails CLI
 go install github.com/wailsapp/wails/v2/cmd/wails@latest
@@ -42,12 +42,12 @@ go install github.com/wailsapp/wails/v2/cmd/wails@latest
 cd frontend && npm install
 ```
 
-### 生产构建
+#### 生产构建
 ```bash
 wails build
 ```
 
-### 开发模式
+#### 开发模式
 ```bash
 wails dev
 ```
