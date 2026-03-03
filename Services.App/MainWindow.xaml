@@ -6,18 +6,16 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:local="using:Services.App"
     xmlns:models="using:Services.Core.Models"
-    Width="800" Height="500"
     mc:Ignorable="d">
-
-    <Window.Resources>
-        <local:StatusColorConverter x:Key="StatusColorConverter"/>
-    </Window.Resources>
 
     <Window.SystemBackdrop>
         <MicaBackdrop Kind="Base"/>
     </Window.SystemBackdrop>
 
     <Grid x:Name="RootGrid">
+        <Grid.Resources>
+            <local:StatusColorConverter x:Key="StatusColorConverter"/>
+        </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
