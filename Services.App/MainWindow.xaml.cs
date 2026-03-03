@@ -42,7 +42,7 @@ namespace Services.App
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hWnd);
             _appWindow = AppWindow.GetFromWindowId(windowId);
             _appWindow.Closing += OnAppWindowClosing;
-            _appWindow.Resize(new Windows.Graphics.SizeInt32(1100, 750));
+            _appWindow.Resize(new Windows.Graphics.SizeInt32(1600, 1000));
 
             _serviceManager = new WindowsServiceManager();
             _serviceManager.ServiceUpdated += OnServiceUpdated;
@@ -241,136 +241,27 @@ namespace Services.App
             }
         }
 
-        private async void OnLogsClick(object sender, RoutedEventArgs e)
+        private void OnLogsClick(object sender, RoutedEventArgs e)
         {
-            if (sender is Button btn && btn.Tag is string serviceName)
+            if (sender is Button btn && btn.Tag is string serviceId)
             {
-                var service = Services.FirstOrDefault(s => s.Name == serviceName);
+                var service = Services.FirstOrDefault(s => s.Id == serviceId);
                 if (service != null)
                 {
-                    await ShowLogViewer(service.Id, service.Name);
+                    ShowLogViewer(service.Id, service.Name);
                 }
                 else
                 {
-                    await ShowLogViewer(serviceName, serviceName);
+                    ShowLogViewer(serviceId, serviceId);
                 }
             }
         }
 
-        private async Task ShowLogViewer(string serviceId, string displayName)
+        private void ShowLogViewer(string serviceId, string displayName)
         {
-            var dialog = new ContentDialog
-            {
-                Title = $"日志 - {displayName}",
-                CloseButtonText = "关闭",
-                XamlRoot = this.Content.XamlRoot,
-                DefaultButton = ContentDialogButton.Close,
-                MinWidth = 800,
-                MinHeight = 600,
-                MaxWidth = 1200,
-                MaxHeight = 900
-            };
-
-            var grid = new Grid();
-            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-            var logBox = new TextBox
-            {
-                IsReadOnly = true,
-                AcceptsReturn = true,
-                TextWrapping = TextWrapping.Wrap,
-                FontFamily = new FontFamily("Consolas"),
-                VerticalAlignment = VerticalAlignment.Stretch,
-                HorizontalAlignment = HorizontalAlignment.Stretch
-            };
-            
-            var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-            timer.Tick += async (s, e) => 
-            {
-                if (dialog.XamlRoot == null)
-                {
-                    timer.Stop();
-                    return;
-                }
-                
-                var path = _logManager.GetLatestLogPath(serviceId);
-                if (path != null)
-                {
-                    var newText = await _logManager.ReadLogAsync(path);
-                    if (logBox.Text != newText) 
-                    {
-                        logBox.Text = newText;
-                        logBox.Select(logBox.Text.Length, 0);
-                    }
-                }
-            };
-            timer.Start();
-            
-            var logPath = _logManager.GetLatestLogPath(serviceId);
-            if (logPath != null)
-            {
-                logBox.Text = await _logManager.ReadLogAsync(logPath);
-            }
-            else
-            {
-                logBox.Text = "未找到日志文件。请确保服务已启动并生成日志。\n日志路径: " + _logManager.GetLogDirectory();
-            }
-
-            Grid.SetRow(logBox, 0);
-            grid.Children.Add(logBox);
-
-            var btnStack = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Right };
-
-            var refreshBtn = new Button 
-            { 
-                Content = "刷新", 
-                CornerRadius = new CornerRadius(4),
-                Padding = new Thickness(12, 6, 12, 6)
-            };
-            refreshBtn.Click += async (s, e) => 
-            {
-                var path = _logManager.GetLatestLogPath(serviceId);
-                logBox.Text = path != null ? await _logManager.ReadLogAsync(path) : "未找到日志文件。";
-            };
-
-            var openFolderBtn = new Button 
-            { 
-                Content = "打开文件夹", 
-                CornerRadius = new CornerRadius(4),
-                Padding = new Thickness(12, 6, 12, 6)
-            };
-            openFolderBtn.Click += async (s, e) => 
-            {
-                var folder = _logManager.GetLogDirectory();
-                if (System.IO.Directory.Exists(folder))
-                {
-                    await Windows.System.Launcher.LaunchFolderPathAsync(folder);
-                }
-            };
-
-            var closeBtn = new Button 
-            { 
-                Content = "关闭", 
-                Style = (Style)Application.Current.Resources["AccentButtonStyle"],
-                CornerRadius = new CornerRadius(4),
-                Padding = new Thickness(12, 6, 12, 6)
-            };
-            closeBtn.Click += (s, e) => dialog.Hide();
-
-            btnStack.Children.Add(openFolderBtn);
-            btnStack.Children.Add(refreshBtn);
-            btnStack.Children.Add(closeBtn);
-
-            Grid.SetRow(btnStack, 1);
-            grid.Children.Add(btnStack);
-
-            dialog.Content = grid;
-            dialog.CloseButtonText = "";
-            dialog.PrimaryButtonText = ""; 
-            
-            await dialog.ShowAsync();
-            timer.Stop();
+            var logWindow = new LogWindow(serviceId, displayName, _logManager);
+            logWindow.Activate();
+            logWindow.CenterOnScreen(_appWindow);
         }
 
         private async void OnAddServiceClick(object sender, RoutedEventArgs e)

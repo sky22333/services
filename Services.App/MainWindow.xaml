@@ -31,18 +31,20 @@
         </Grid>
 
         <Grid Grid.Row="1" Padding="16,0,16,8">
-            <CommandBar DefaultLabelPosition="Right" Background="{ThemeResource LayerFillColorDefaultBrush}" IsOpen="False" CornerRadius="8">
-                <AppBarButton Icon="Add" Label="添加服务" Click="OnAddServiceClick" ToolTipService.ToolTip="创建一个新服务"/>
-                <AppBarSeparator/>
-                <AppBarButton Icon="Refresh" Label="刷新" Click="OnRefreshClick" ToolTipService.ToolTip="刷新服务列表"/>
-                <AppBarSeparator/>
-                <AppBarButton Label="环境变量" Click="OnEnvVarsClick" ToolTipService.ToolTip="管理系统环境变量">
-                    <AppBarButton.Icon>
-                        <FontIcon Glyph="&#xE81E;"/>
-                    </AppBarButton.Icon>
-                </AppBarButton>
-                <AppBarButton Icon="Setting" Label="设置" Click="OnSettingsClick"/>
-            </CommandBar>
+            <Grid Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8">
+                <CommandBar DefaultLabelPosition="Right" Background="Transparent" IsOpen="False">
+                    <AppBarButton Icon="Add" Label="添加服务" Click="OnAddServiceClick" ToolTipService.ToolTip="创建一个新服务"/>
+                    <AppBarSeparator/>
+                    <AppBarButton Icon="Refresh" Label="刷新" Click="OnRefreshClick" ToolTipService.ToolTip="刷新服务列表"/>
+                    <AppBarSeparator/>
+                    <AppBarButton Label="环境变量" Click="OnEnvVarsClick" ToolTipService.ToolTip="管理系统环境变量">
+                        <AppBarButton.Icon>
+                            <FontIcon Glyph="&#xE81E;"/>
+                        </AppBarButton.Icon>
+                    </AppBarButton>
+                    <AppBarButton Icon="Setting" Label="设置" Click="OnSettingsClick"/>
+                </CommandBar>
+            </Grid>
         </Grid>
 
         <Grid Grid.Row="2" Padding="16,0,16,16">
