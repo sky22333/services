@@ -1,63 +1,56 @@
-name: Release
+name: 构建与发布 (Build and Release)
 
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Release tag'
+      tag_name:
+        description: '发布版本标签 (例如: v2.0.0)'
         required: true
-        type: string
-        default: 'v1.0.0'
+        default: 'v2.0.0'
+
+permissions:
+  contents: write
 
 jobs:
   build:
+    name: 编译 Windows 应用
     runs-on: windows-latest
-    permissions:
-      contents: write
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Go
-      uses: actions/setup-go@v5
+    - name: 检出代码 (Checkout)
+      uses: actions/checkout@v4
       with:
-        go-version: '1.24'
-        cache: true
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
+        fetch-depth: 0
+
+    - name: 安装 .NET 环境
+      uses: actions/setup-dotnet@v4
       with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: 'frontend/package-lock.json'
+        dotnet-version: 8.0.x
     
-    - name: Install Wails
-      run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.10.2
-    
-    - name: Install frontend dependencies
-      run: npm install
-      working-directory: ./frontend
-    
-    - name: Build application
-      run: wails build -clean -platform windows/amd64 -ldflags "-H windowsgui"
-    
-    - name: Create Release
-      uses: ncipollo/release-action@v1
+    - name: 还原依赖 (Restore)
+      working-directory: Services_CSharp
+      run: dotnet restore
+
+    - name: 编译并发布 (Build & Publish)
+      working-directory: Services_CSharp
+      run: |
+        dotnet publish Services.App/Services.App.csproj -c Release -r win10-x64 --self-contained -p:PublishSingleFile=true -o publish/
+
+    - name: 打包发布文件 (Zip)
+      working-directory: Services_CSharp/publish
+      run: |
+        Compress-Archive -Path * -DestinationPath ../../Services.App-win10-x64.zip
+
+    - name: 创建 GitHub Release
+      if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+      uses: softprops/action-gh-release@v1
       with:
-        tag: ${{ github.event.inputs.tag }}
-        name: Release ${{ github.event.inputs.tag }}
-        body: |
-          ## Windows Service Manager ${{ github.event.inputs.tag }}
-          
-          现代化的 Windows 后台服务管理工具
-          
-          ### 使用说明
-          1. 下载并运行 `services.exe`
-          2. 点击"添加服务"创建新的后台服务
-          3. 请以管理员权限运行
-          
-        artifacts: "build/bin/services.exe"
-        artifactContentType: "application/octet-stream"
+        files: Services.App-win10-x64.zip
+        generate_release_notes: true
+        tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
+        name: Release ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
         draft: false
         prerelease: false
-        token: ${{ secrets.GITHUB_TOKEN }}
