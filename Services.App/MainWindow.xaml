@@ -62,7 +62,7 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="服务名称" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.6"/>
                 <TextBlock Grid.Column="1" Text="状态" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.6"/>
-                <TextBlock Grid.Column="2" Text="可执行路径" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.6"/>
+                <TextBlock Grid.Column="2" Text="程序路径" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.6"/>
                 <TextBlock Grid.Column="3" Text="操作" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.6" Margin="0,0,20,0"/>
             </Grid>
 
