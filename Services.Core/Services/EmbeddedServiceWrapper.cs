@@ -59,10 +59,13 @@ namespace Services.Core.Services
             {
                 try
                 {
-                    _process.Kill();
+                    _process.Kill(true); // Kill entire process tree
                     _process.WaitForExit(5000);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    WriteLog($"Error stopping process: {ex.Message}");
+                }
             }
             
             CloseLogWriter();

@@ -22,6 +22,8 @@ namespace Services.Core.Services
 
         public event EventHandler<Service>? ServiceUpdated;
 
+        private readonly object _lock = new();
+
         public WindowsServiceManager()
         {
             var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -32,36 +34,51 @@ namespace Services.Core.Services
             }
             _dataFilePath = Path.Combine(dataDir, DataFile);
             
-            // Don't block constructor with IO, load lazily or init properly
-            try { LoadServices(); } catch { }
+            LoadServices();
         }
 
         public async Task<List<Service>> GetServicesAsync()
         {
-            // Reload from disk to sync with other instances
-            LoadServices();
-
-            var tasks = _services.Values.Select(UpdateServiceStatusAsync);
-            await Task.WhenAll(tasks);
+            // Do not reload from disk every time. Only memory state is returned.
+            // Disk sync happens on modification.
             
-            foreach (var service in _services.Values)
+            List<Service> currentServices;
+            lock (_lock)
             {
-                if (!_monitors.ContainsKey(service.Id))
-                {
-                    var monitor = new ServiceMonitor(service.Id);
-                    monitor.StatusChanged += (s, e) => 
-                    {
-                        service.Status = e.Status;
-                        service.Pid = e.Pid;
-                        service.UpdatedAt = DateTime.Now;
-                        ServiceUpdated?.Invoke(this, CloneService(service));
-                    };
-                    monitor.StartMonitoring();
-                    _monitors[service.Id] = monitor;
-                }
+                currentServices = _services.Values.ToList();
             }
 
-            return _services.Values.Select(CloneService).ToList();
+            // Concurrently update status for all services
+            // This allows the UI to get fresh status without waiting for the monitor interval
+            var tasks = currentServices.Select(UpdateServiceStatusAsync);
+            await Task.WhenAll(tasks);
+            
+            lock (_lock)
+            {
+                foreach (var service in currentServices)
+                {
+                    if (!_monitors.ContainsKey(service.Id))
+                    {
+                        var monitor = new ServiceMonitor(service.Id);
+                        monitor.StatusChanged += (s, e) => 
+                        {
+                            lock (_lock)
+                            {
+                                if (_services.TryGetValue(service.Id, out var trackedService))
+                                {
+                                    trackedService.Status = e.Status;
+                                    trackedService.Pid = e.Pid;
+                                    trackedService.UpdatedAt = DateTime.Now;
+                                    ServiceUpdated?.Invoke(this, CloneService(trackedService));
+                                }
+                            }
+                        };
+                        monitor.StartMonitoring();
+                        _monitors[service.Id] = monitor;
+                    }
+                }
+                return _services.Values.Select(CloneService).ToList();
+            }
         }
 
         public void Dispose()
@@ -116,8 +133,12 @@ namespace Services.Core.Services
                 throw new ArgumentException("Service Name contains illegal characters.");
 
             string serviceName = GenerateServiceName(config.Name);
-            if (_services.ContainsKey(serviceName))
-                throw new Exception($"Service {serviceName} already exists");
+            
+            lock (_lock)
+            {
+                if (_services.ContainsKey(serviceName))
+                    throw new Exception($"Service {serviceName} already exists");
+            }
 
             var module = Process.GetCurrentProcess().MainModule;
             if (module == null) throw new Exception("Cannot determine current executable path");
@@ -173,16 +194,22 @@ namespace Services.Core.Services
                 AutoStart = true
             };
 
-            _services[serviceName] = service;
-            SaveServices();
-
+            lock (_lock)
+            {
+                _services[serviceName] = service;
+                SaveServices();
+            }
         }
 
         public Task UpdateServiceAsync(string serviceId, ServiceConfig config)
         {
-            if (!_services.TryGetValue(serviceId, out var existingService))
+            Service? existingService;
+            lock (_lock)
             {
-                throw new KeyNotFoundException($"Service {serviceId} not found");
+                if (!_services.TryGetValue(serviceId, out existingService))
+                {
+                    throw new KeyNotFoundException($"Service {serviceId} not found");
+                }
             }
 
             if (!File.Exists(config.ExePath))
@@ -218,13 +245,16 @@ namespace Services.Core.Services
             }
 
             // Update local model
-            existingService.ExePath = config.ExePath;
-            existingService.Args = config.Args;
-            existingService.WorkingDir = config.WorkingDir;
-            existingService.UpdatedAt = DateTime.Now;
+            lock (_lock)
+            {
+                existingService.ExePath = config.ExePath;
+                existingService.Args = config.Args;
+                existingService.WorkingDir = config.WorkingDir;
+                existingService.UpdatedAt = DateTime.Now;
 
-            SaveServices();
-            ServiceUpdated?.Invoke(this, CloneService(existingService));
+                SaveServices();
+                ServiceUpdated?.Invoke(this, CloneService(existingService));
+            }
 
             return Task.CompletedTask;
         }
@@ -259,7 +289,11 @@ namespace Services.Core.Services
 
         public async Task StartServiceAsync(string serviceId)
         {
-            if (!_services.ContainsKey(serviceId)) throw new Exception("Service not found");
+            Service? service;
+            lock (_lock)
+            {
+                if (!_services.TryGetValue(serviceId, out service)) throw new Exception("Service not found");
+            }
 
             using var sc = new ServiceController(serviceId);
             if (sc.Status != ServiceControllerStatus.Running)
@@ -271,13 +305,17 @@ namespace Services.Core.Services
                 }
                 catch (System.ServiceProcess.TimeoutException) { }
             }
-            await UpdateServiceStatusAsync(_services[serviceId]);
-            ServiceUpdated?.Invoke(this, _services[serviceId]);
+            await UpdateServiceStatusAsync(service);
+            ServiceUpdated?.Invoke(this, service);
         }
 
         public async Task StopServiceAsync(string serviceId)
         {
-            if (!_services.ContainsKey(serviceId)) throw new Exception("Service not found");
+            Service? service;
+            lock (_lock)
+            {
+                if (!_services.TryGetValue(serviceId, out service)) throw new Exception("Service not found");
+            }
 
             using var sc = new ServiceController(serviceId);
             if (sc.Status == ServiceControllerStatus.Running)
@@ -289,13 +327,16 @@ namespace Services.Core.Services
                 }
                 catch (System.ServiceProcess.TimeoutException) { }
             }
-            await UpdateServiceStatusAsync(_services[serviceId]);
-            ServiceUpdated?.Invoke(this, _services[serviceId]);
+            await UpdateServiceStatusAsync(service);
+            ServiceUpdated?.Invoke(this, service);
         }
 
         public async Task DeleteServiceAsync(string serviceId)
         {
-            if (!_services.ContainsKey(serviceId)) throw new Exception("Service not found");
+            lock (_lock)
+            {
+                if (!_services.ContainsKey(serviceId)) throw new Exception("Service not found");
+            }
 
             if (_monitors.TryGetValue(serviceId, out var monitor))
             {
@@ -306,8 +347,11 @@ namespace Services.Core.Services
             await StopServiceAsync(serviceId);
             await RunCommandAsync("sc.exe", $"delete {serviceId}");
 
-            _services.Remove(serviceId);
-            SaveServices();
+            lock (_lock)
+            {
+                _services.Remove(serviceId);
+                SaveServices();
+            }
         }
 
         private void LoadServices()
@@ -318,7 +362,13 @@ namespace Services.Core.Services
                 {
                     var json = File.ReadAllText(_dataFilePath);
                     var list = JsonSerializer.Deserialize<Dictionary<string, Service>>(json);
-                    if (list != null) _services = list;
+                    if (list != null)
+                    {
+                        lock (_lock)
+                        {
+                            _services = list;
+                        }
+                    }
                 }
                 catch { }
             }

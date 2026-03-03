@@ -44,15 +44,22 @@ namespace Services.Core.Services
             try
             {
                 using (var stream = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                using (var reader = new StreamReader(stream))
                 {
                     if (stream.Length > 100 * 1024)
                     {
                         stream.Seek(-100 * 1024, SeekOrigin.End);
-                        reader.ReadLine(); 
-                        return "... (旧日志已截断) ...\n" + await reader.ReadToEndAsync();
+                        // StreamReader buffers data, so we must seek BEFORE creating it.
+                        using (var reader = new StreamReader(stream))
+                        {
+                            await reader.ReadLineAsync(); // Discard partial line
+                            return "... (旧日志已截断) ...\n" + await reader.ReadToEndAsync();
+                        }
                     }
-                    return await reader.ReadToEndAsync();
+                    
+                    using (var reader = new StreamReader(stream))
+                    {
+                        return await reader.ReadToEndAsync();
+                    }
                 }
             }
             catch (Exception ex)
@@ -72,18 +79,24 @@ namespace Services.Core.Services
 
                 foreach (var file in files)
                 {
-                    var fileInfo = new FileInfo(file);
-                    if (fileInfo.CreationTime < cutoffDate)
+                    try
                     {
-                        try
+                        var fileInfo = new FileInfo(file);
+                        if (fileInfo.CreationTime < cutoffDate)
                         {
                             fileInfo.Delete();
                         }
-                        catch { }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Failed to delete log {file}: {ex.Message}");
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"CleanupOldLogs failed: {ex.Message}");
+            }
         }
 
         public static int GetGlobalRetentionDays()

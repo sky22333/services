@@ -89,30 +89,33 @@ namespace Services.Core.Services
 
             try
             {
-                uint bytesNeeded;
-                IntPtr ptr = Marshal.AllocHGlobal(1024);
-                try
+                // Use stackalloc to avoid heap allocation for small buffer
+                Span<byte> buffer = stackalloc byte[1024];
+                unsafe
                 {
-                    if (QueryServiceStatusEx(_hService, 0, ptr, 1024, out bytesNeeded))
+                    fixed (byte* pBuffer = buffer)
                     {
-                        var status = Marshal.PtrToStructure<SERVICE_STATUS_PROCESS>(ptr);
-                         string statusStr = status.dwCurrentState switch
+                        uint bytesNeeded;
+                        if (QueryServiceStatusEx(_hService, 0, (IntPtr)pBuffer, 1024, out bytesNeeded))
                         {
-                            1 => "已停止",
-                            2 => "启动中",
-                            3 => "停止中",
-                            4 => "运行中",
-                            _ => "未知"
-                        };
-                        return (statusStr, (int)status.dwProcessId);
+                            var status = Marshal.PtrToStructure<SERVICE_STATUS_PROCESS>((IntPtr)pBuffer);
+                             string statusStr = status.dwCurrentState switch
+                            {
+                                1 => "已停止",
+                                2 => "启动中",
+                                3 => "停止中",
+                                4 => "运行中",
+                                _ => "未知"
+                            };
+                            return (statusStr, (int)status.dwProcessId);
+                        }
                     }
                 }
-                finally
-                {
-                    Marshal.FreeHGlobal(ptr);
-                }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"GetCurrentStatus Failed: {ex.Message}");
+            }
             return ("未知", 0);
         }
 

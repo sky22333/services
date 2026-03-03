@@ -24,6 +24,8 @@ namespace Services.App
         private readonly LogManager _logManager;
         private AppWindow _appWindow;
         private bool _isRealExit = false;
+        private DispatcherTimer? _refreshTimer;
+        private bool _isLoadServicesRunning = false;
 
         public ObservableCollection<Service> Services { get; } = new();
 
@@ -61,11 +63,23 @@ namespace Services.App
             LoadServices();
             Title = "ServicesApp";
             
-            this.Closed += (s, e) => _serviceManager.Dispose();
+            this.Closed += OnWindowClosed;
 
-            var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-            timer.Tick += (s, e) => LoadServices(true);
-            timer.Start();
+            _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            _refreshTimer.Tick += (s, e) => LoadServices(true);
+            _refreshTimer.Start();
+        }
+
+        private void OnWindowClosed(object sender, WindowEventArgs args)
+        {
+            _refreshTimer?.Stop();
+            _refreshTimer = null;
+            if (_serviceManager != null)
+            {
+                _serviceManager.ServiceUpdated -= OnServiceUpdated;
+                _serviceManager.Dispose();
+            }
+            TrayIcon?.Dispose();
         }
 
         private void InitializeTrayIcon()
@@ -136,6 +150,7 @@ namespace Services.App
             _appWindow.Show();
             _appWindow.MoveInZOrderAtTop();
             this.Activate();
+            LoadServices(); // Refresh immediately when showing
         }
 
         public void RealExit()
@@ -172,6 +187,12 @@ namespace Services.App
 
         private async void LoadServices(bool silent = false)
         {
+            if (_isLoadServicesRunning) return;
+
+            // Optimization: Do not refresh UI if window is hidden and this is an automated refresh
+            if (silent && _appWindow != null && !_appWindow.IsVisible) return;
+
+            _isLoadServicesRunning = true;
             try
             {
                 if (!silent) UpdateStatus("正在加载服务...");
@@ -204,6 +225,10 @@ namespace Services.App
             catch (Exception ex)
             {
                 if (!silent) UpdateStatus($"加载服务失败: {ex.Message}");
+            }
+            finally
+            {
+                _isLoadServicesRunning = false;
             }
         }
         
