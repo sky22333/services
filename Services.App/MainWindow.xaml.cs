@@ -42,7 +42,7 @@ namespace Services.App
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hWnd);
             _appWindow = AppWindow.GetFromWindowId(windowId);
             _appWindow.Closing += OnAppWindowClosing;
-            _appWindow.Resize(new Windows.Graphics.SizeInt32(800, 500));
+            _appWindow.Resize(new Windows.Graphics.SizeInt32(1100, 750));
 
             _serviceManager = new WindowsServiceManager();
             _serviceManager.ServiceUpdated += OnServiceUpdated;
