@@ -35,7 +35,7 @@ jobs:
 
     - name: 编译并发布 (Build & Publish)
       run: |
-        dotnet publish Services.App/Services.App.csproj -c Release -r win-x64 -p:Platform=x64 -o publish/
+        dotnet publish Services.App/Services.App.csproj -c Release -r win-x64 -p:Platform=x64 -p:PublishSingleFile=true -o publish/
 
     - name: 打包发布文件 (Zip)
       working-directory: publish
