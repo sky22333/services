@@ -478,7 +478,7 @@ namespace Services.App
 
             var infoBlock = new TextBlock 
             { 
-                Text = "版本: 1.0.0\n作者: Trae AI\n\n本应用用于管理本地后台服务。",
+                Text = "本应用用于管理系统后台服务。",
                 TextWrapping = TextWrapping.Wrap,
                 Opacity = 0.8
             };
