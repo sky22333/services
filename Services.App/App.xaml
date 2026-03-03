@@ -2,7 +2,8 @@
     x:Class="Services.App.App"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:Services.App">
+    xmlns:local="using:Services.App"
+    xmlns:tb="using:H.NotifyIcon">
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>

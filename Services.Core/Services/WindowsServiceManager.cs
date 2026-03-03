@@ -178,6 +178,57 @@ namespace Services.Core.Services
 
         }
 
+        public Task UpdateServiceAsync(string serviceId, ServiceConfig config)
+        {
+            if (!_services.TryGetValue(serviceId, out var existingService))
+            {
+                throw new KeyNotFoundException($"Service {serviceId} not found");
+            }
+
+            if (!File.Exists(config.ExePath))
+            {
+                throw new FileNotFoundException("Executable not found", config.ExePath);
+            }
+
+            // Update registry configuration
+            try 
+            {
+                using (var servicesKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services", true))
+                {
+                    if (servicesKey != null)
+                    {
+                        using (var serviceKey = servicesKey.OpenSubKey(serviceId, true))
+                        {
+                            if (serviceKey != null)
+                            {
+                                using (var paramsKey = serviceKey.CreateSubKey("Parameters"))
+                                {
+                                    paramsKey.SetValue("ExePath", config.ExePath);
+                                    paramsKey.SetValue("Args", config.Args ?? "");
+                                    paramsKey.SetValue("WorkingDir", string.IsNullOrEmpty(config.WorkingDir) ? Path.GetDirectoryName(config.ExePath) ?? "" : config.WorkingDir);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Failed to update service configuration: {ex.Message}");
+            }
+
+            // Update local model
+            existingService.ExePath = config.ExePath;
+            existingService.Args = config.Args;
+            existingService.WorkingDir = config.WorkingDir;
+            existingService.UpdatedAt = DateTime.Now;
+
+            SaveServices();
+            ServiceUpdated?.Invoke(this, CloneService(existingService));
+
+            return Task.CompletedTask;
+        }
+
         private async Task RunCommandAsync(string command, string args)
         {
             var psi = new ProcessStartInfo(command, args)

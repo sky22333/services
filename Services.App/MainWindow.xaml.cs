@@ -18,8 +18,7 @@ namespace Services.App
 {
     public sealed partial class MainWindow : Window
     {
-        private System.Windows.Forms.NotifyIcon? _notifyIcon;
-
+        private H.NotifyIcon.TaskbarIcon? TrayIcon;
         private readonly WindowsServiceManager _serviceManager;
         private readonly EnvironmentManager _envManager;
         private readonly LogManager _logManager;
@@ -36,13 +35,20 @@ namespace Services.App
             ExtendsContentIntoTitleBar = true;
             SetTitleBar(AppTitleBar);
 
-            InitializeTrayIcon();
-
             var hWnd = WindowNative.GetWindowHandle(this);
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hWnd);
             _appWindow = AppWindow.GetFromWindowId(windowId);
-            _appWindow.Closing += OnAppWindowClosing;
             _appWindow.Resize(new Windows.Graphics.SizeInt32(1800, 1200));
+
+            // Hide window instead of closing
+            _appWindow.Closing += (s, args) =>
+            {
+                if (!_isRealExit)
+                {
+                    args.Cancel = true;
+                    _appWindow.Hide();
+                }
+            };
 
             _serviceManager = new WindowsServiceManager();
             _serviceManager.ServiceUpdated += OnServiceUpdated;
@@ -50,50 +56,74 @@ namespace Services.App
             _envManager = new EnvironmentManager();
             _logManager = new LogManager();
 
+            InitializeTrayIcon();
+
             LoadServices();
             Title = "ServicesApp";
             
             this.Closed += (s, e) => _serviceManager.Dispose();
+
+            var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            timer.Tick += (s, e) => LoadServices(true);
+            timer.Start();
         }
 
         private void InitializeTrayIcon()
         {
             try
             {
-                _notifyIcon = new System.Windows.Forms.NotifyIcon();
-                _notifyIcon.Text = "ServicesApp";
+                TrayIcon = new H.NotifyIcon.TaskbarIcon();
+                TrayIcon.ToolTipText = "ServicesApp";
                 
+                // Use absolute path for icon
                 var iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "icon.ico");
                 if (System.IO.File.Exists(iconPath))
                 {
-                    _notifyIcon.Icon = new System.Drawing.Icon(iconPath);
+                    TrayIcon.IconSource = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(iconPath));
                 }
-                else
-                {
-                    _notifyIcon.Icon = System.Drawing.SystemIcons.Application;
-                }
-
-                _notifyIcon.Visible = true;
-                _notifyIcon.DoubleClick += (s, e) => OnTrayOpenClick(null, null);
-
-                var contextMenu = new System.Windows.Forms.ContextMenuStrip();
-                var showItem = new System.Windows.Forms.ToolStripMenuItem("显示窗口");
-                showItem.Click += (s, e) => OnTrayOpenClick(null, null);
                 
-                var exitItem = new System.Windows.Forms.ToolStripMenuItem("退出");
-                exitItem.Click += (s, e) => 
-                {
-                    _isRealExit = true;
-                    _notifyIcon.Visible = false;
-                    _notifyIcon.Dispose();
-                    Application.Current.Exit();
-                };
+                // Important: Add to visual tree FIRST to ensure it has a XamlRoot and Dispatcher
+                RootGrid.Children.Add(TrayIcon);
 
-                contextMenu.Items.Add(showItem);
-                contextMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
-                contextMenu.Items.Add(exitItem);
+                // Use SecondWindow mode to support context menu in unpackaged apps
+                TrayIcon.ContextMenuMode = H.NotifyIcon.ContextMenuMode.SecondWindow;
+                TrayIcon.NoLeftClickDelay = true; // Improve responsiveness
 
-                _notifyIcon.ContextMenuStrip = contextMenu;
+                // Setup events
+                TrayIcon.DoubleTapped += (s, e) => ShowWindow();
+                
+                // Initialize Flyout
+                var flyout = new MenuFlyout();
+                flyout.AreOpenCloseAnimationsEnabled = false; // Disable animations for better performance
+                
+                // Use standard style with necessary adjustments only
+                var presenterStyle = new Style(typeof(MenuFlyoutPresenter));
+                presenterStyle.Setters.Add(new Setter(ScrollViewer.VerticalScrollBarVisibilityProperty, ScrollBarVisibility.Disabled));
+                presenterStyle.Setters.Add(new Setter(ScrollViewer.HorizontalScrollBarVisibilityProperty, ScrollBarVisibility.Disabled));
+                presenterStyle.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(4)));
+                presenterStyle.Setters.Add(new Setter(Control.CornerRadiusProperty, new CornerRadius(4)));
+                presenterStyle.Setters.Add(new Setter(FrameworkElement.MaxWidthProperty, 240));
+                
+                flyout.MenuFlyoutPresenterStyle = presenterStyle;
+                flyout.Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.Top; // Prefer top placement
+                
+                var showItem = new MenuFlyoutItem { Text = "显示窗口", Icon = new FontIcon { Glyph = "\uE7F4" } };
+                showItem.Click += OnShowWindowClick;
+                
+                var exitItem = new MenuFlyoutItem { Text = "退出", Icon = new FontIcon { Glyph = "\uE711" } };
+                exitItem.Click += OnExitClick;
+                
+                flyout.Items.Add(showItem);
+                flyout.Items.Add(new MenuFlyoutSeparator());
+                flyout.Items.Add(exitItem);
+                
+                TrayIcon.ContextFlyout = flyout;
+                
+                // Ensure icon is created
+                TrayIcon.ForceCreate();
+                
+                // Ensure icon is visible
+                TrayIcon.Visibility = Visibility.Visible;
             }
             catch (Exception ex)
             {
@@ -101,28 +131,30 @@ namespace Services.App
             }
         }
 
-        private void OnAppWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
-        {
-            if (!_isRealExit)
-            {
-                args.Cancel = true;
-                _appWindow.Hide();
-            }
-        }
-
-        private void OnTrayOpenClick(object? sender, object? e)
+        public void ShowWindow()
         {
             _appWindow.Show();
+            _appWindow.MoveInZOrderAtTop();
             this.Activate();
         }
 
-        private void OnTrayExitClick(object sender, RoutedEventArgs e)
+        public void RealExit()
         {
             _isRealExit = true;
-            _notifyIcon?.Dispose();
-            
+            TrayIcon?.Dispose();
             Application.Current.Exit();
         }
+
+        private void OnShowWindowClick(object sender, RoutedEventArgs e)
+        {
+            ShowWindow();
+        }
+
+        private void OnExitClick(object sender, RoutedEventArgs e)
+        {
+            RealExit();
+        }
+
 
         private void OnServiceUpdated(object? sender, Service service)
         {
@@ -457,7 +489,109 @@ namespace Services.App
 
         private async void OnEditClick(object sender, RoutedEventArgs e)
         {
-            await ShowDialog("提示", "编辑功能暂未实现。");
+            if (sender is Button btn && btn.Tag is string serviceId)
+            {
+                var service = Services.FirstOrDefault(s => s.Id == serviceId);
+                if (service == null) return;
+
+                var dialog = new ContentDialog
+                {
+                    Title = $"编辑服务 - {service.Name}",
+                    PrimaryButtonText = "保存",
+                    CloseButtonText = "取消",
+                    XamlRoot = this.Content.XamlRoot
+                };
+
+                var stack = new StackPanel { Spacing = 10 };
+                var nameBox = new TextBox { Header = "服务名称 (不可修改)", Text = service.Name, IsReadOnly = true };
+                var exeBox = new TextBox { Header = "可执行文件路径", Text = service.ExePath, PlaceholderText = "C:\\Path\\To\\App.exe" };
+                var argsBox = new TextBox { Header = "启动参数 (可选)", Text = service.Args ?? "" };
+                var workDirBox = new TextBox { Header = "工作目录 (可选)", Text = service.WorkingDir ?? "" };
+                
+                var browseBtn = new Button { Content = "浏览..." };
+                browseBtn.Click += async (s, args) => {
+                    string? pickedPath = null;
+                    try
+                    {
+                        var picker = new FileOpenPicker();
+                        picker.ViewMode = PickerViewMode.List;
+                        picker.SuggestedStartLocation = PickerLocationId.ComputerFolder;
+                        picker.FileTypeFilter.Add(".exe");
+                        picker.FileTypeFilter.Add(".bat");
+                        picker.FileTypeFilter.Add(".cmd");
+                        
+                        var hwnd = WindowNative.GetWindowHandle(this);
+                        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+
+                        var file = await picker.PickSingleFileAsync();
+                        if (file != null) pickedPath = file.Path;
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"WinUI Picker failed: {ex}");
+                        pickedPath = await PickFileWithPowerShell();
+                    }
+
+                    if (pickedPath != null) 
+                    {
+                        exeBox.Text = pickedPath;
+                        if (string.IsNullOrWhiteSpace(workDirBox.Text))
+                        {
+                            workDirBox.Text = System.IO.Path.GetDirectoryName(pickedPath) ?? "";
+                        }
+                    }
+                };
+
+                stack.Children.Add(nameBox);
+                stack.Children.Add(exeBox);
+                stack.Children.Add(browseBtn);
+                stack.Children.Add(argsBox);
+                stack.Children.Add(workDirBox);
+                dialog.Content = stack;
+
+                var result = await dialog.ShowAsync();
+                if (result == ContentDialogResult.Primary)
+                {
+                    if (string.IsNullOrWhiteSpace(exeBox.Text))
+                    {
+                        await ShowDialog("验证错误", "可执行文件路径不能为空。");
+                        return;
+                    }
+
+                    try
+                    {
+                        var config = new ServiceConfig
+                        {
+                            Name = service.Name,
+                            ExePath = exeBox.Text,
+                            Args = argsBox.Text,
+                            WorkingDir = workDirBox.Text
+                        };
+
+                        if (service.Status == "运行中" || service.Status == "启动中")
+                        {
+                            var confirm = await ShowConfirmDialog("需要重启", "修改服务配置需要重启服务才能生效。是否立即重启？");
+                            await _serviceManager.UpdateServiceAsync(service.Id, config);
+                            if (confirm)
+                            {
+                                await _serviceManager.StopServiceAsync(service.Id);
+                                await _serviceManager.StartServiceAsync(service.Id);
+                            }
+                        }
+                        else
+                        {
+                            await _serviceManager.UpdateServiceAsync(service.Id, config);
+                        }
+                        
+                        LoadServices();
+                        UpdateStatus($"服务 {config.Name} 配置已更新。");
+                    }
+                    catch (Exception ex)
+                    {
+                        await ShowDialog("错误", $"更新服务失败: {ex.Message}");
+                    }
+                }
+            }
         }
 
         private async Task ShowDialog(string title, string content)
