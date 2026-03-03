@@ -25,17 +25,15 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: 安装 .NET 环境
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: 8.0.402
-    
+    - name: 配置 MSBuild
+      uses: microsoft/setup-msbuild@v2
+
     - name: 还原依赖 (Restore)
-      run: dotnet restore Services.sln
+      run: msbuild Services.sln /t:Restore /p:Configuration=Release /p:Platform=x64
 
     - name: 编译并发布 (Build & Publish)
       run: |
-        dotnet publish Services.App/Services.App.csproj -c Release -r win-x64 -p:Platform=x64 -p:PublishSingleFile=true -o publish/
+        msbuild Services.App/Services.App.csproj /t:Publish /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /p:PublishSingleFile=true /p:SelfContained=true /p:PublishDir=${{ github.workspace }}\publish\
 
     - name: 打包发布文件 (Zip)
       working-directory: publish
