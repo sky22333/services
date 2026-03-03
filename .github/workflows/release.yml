@@ -29,11 +29,11 @@ jobs:
       uses: microsoft/setup-msbuild@v2
 
     - name: 还原依赖 (Restore)
-      run: msbuild Services.sln /t:Restore /p:Configuration=Release /p:Platform=x64
+      run: msbuild Services.sln /t:Restore /p:Configuration=Release
 
     - name: 编译并发布 (Build & Publish)
       run: |
-        msbuild Services.App/Services.App.csproj /t:Publish /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /p:PublishSingleFile=true /p:SelfContained=true /p:PublishDir=${{ github.workspace }}\publish\
+        msbuild Services.App/Services.App.csproj /t:Publish /p:Configuration=Release /p:RuntimeIdentifier=win-x64 /p:PublishSingleFile=true /p:SelfContained=true /p:PublishDir=${{ github.workspace }}\publish\
 
     - name: 打包发布文件 (Zip)
       working-directory: publish
