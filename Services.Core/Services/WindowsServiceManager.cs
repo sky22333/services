@@ -8,6 +8,7 @@ using System.ServiceProcess;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Win32;
+using Services.Core.Helpers;
 using Services.Core.Models;
 
 namespace Services.Core.Services
@@ -24,11 +25,15 @@ namespace Services.Core.Services
         public WindowsServiceManager()
         {
             _dataFilePath = Path.Combine(Path.GetTempPath(), DataFile);
-            LoadServices();
+            // Don't block constructor with IO, load lazily or init properly
+            try { LoadServices(); } catch { }
         }
 
         public async Task<List<Service>> GetServicesAsync()
         {
+            // Reload from disk to sync with other instances
+            LoadServices();
+
             var tasks = _services.Values.Select(UpdateServiceStatusAsync);
             await Task.WhenAll(tasks);
             
@@ -84,78 +89,24 @@ namespace Services.Core.Services
             if (service == null) return;
             await Task.Run(() => 
             {
-                try
-                {
-                    using var sc = new ServiceController(service.Id!);
-                    sc.Refresh();
-                    try 
-                    {
-                        var status = sc.Status;
-                        service.Status = status == ServiceControllerStatus.Running ? "运行中" : "已停止";
-
-                        if (status == ServiceControllerStatus.Running)
-                        {
-                            service.Pid = GetServicePid(service.Id);
-                        }
-                        else
-                        {
-                            service.Pid = 0;
-                        }
-                    }
-                    catch (InvalidOperationException) 
-                    {
-                        service.Status = "错误"; 
-                    }
-                }
-                catch
-                {
-                    service.Status = "错误";
-                    service.Pid = 0;
-                }
+                var (status, pid) = ServiceUtils.GetServiceStatus(service.Id);
+                service.Status = status;
+                service.Pid = pid;
                 service.UpdatedAt = DateTime.Now;
             });
         }
-
-        private int GetServicePid(string serviceName)
-        {
-            try
-            {
-                var psi = new ProcessStartInfo("sc", $"queryex {serviceName}")
-                {
-                    RedirectStandardOutput = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                
-                using var process = Process.Start(psi);
-                if (process != null)
-                {
-                    var output = process.StandardOutput.ReadToEnd();
-                    process.WaitForExit();
-                    
-                    var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                    foreach (var line in lines)
-                    {
-                        if (line.Trim().StartsWith("PID"))
-                        {
-                            var parts = line.Split(':');
-                            if (parts.Length > 1 && int.TryParse(parts[1].Trim(), out int pid))
-                            {
-                                return pid;
-                            }
-                        }
-                    }
-                }
-            }
-            catch { }
-            return 0;
-        }
-
 
         public async Task CreateServiceAsync(ServiceConfig config)
         {
             if (!File.Exists(config.ExePath))
                 throw new FileNotFoundException("Executable not found", config.ExePath);
+
+            // Security Validation
+            if (config.Name.Any(c => !char.IsLetterOrDigit(c) && c != '_' && c != '-' && c != ' '))
+                throw new ArgumentException("Service Name contains invalid characters.");
+            
+            if (config.Name.Contains("\"") || config.Name.Contains("\n") || config.Name.Contains("\r"))
+                throw new ArgumentException("Service Name contains illegal characters.");
 
             string serviceName = GenerateServiceName(config.Name);
             if (_services.ContainsKey(serviceName))
@@ -164,8 +115,12 @@ namespace Services.Core.Services
             var module = Process.GetCurrentProcess().MainModule;
             if (module == null) throw new Exception("Cannot determine current executable path");
             string currentExe = module.FileName;
+            
+            // Construct command safely
             string wrapperCmd = $"\\\"{currentExe}\\\" --service-wrapper \\\"{serviceName}\\\"";
 
+            // We still use string interpolation for sc.exe because of its specific syntax requirements,
+            // but we have validated the input Name.
             await RunCommandAsync("sc.exe", $"create \"{serviceName}\" binPath= \"{wrapperCmd}\" start= auto DisplayName= \"{config.Name}\"");
 
             try 

@@ -67,6 +67,8 @@ namespace Services.App
 
             LoadServices();
             Title = "Windows 服务管理器";
+            
+            this.Closed += (s, e) => _serviceManager.Dispose();
         }
 
         private void InitializeTrayIcon()
@@ -123,7 +125,7 @@ namespace Services.App
             }
         }
 
-        private void OnTrayOpenClick(object sender, object e)
+        private void OnTrayOpenClick(object? sender, object? e)
         {
             _appWindow.Show();
             this.Activate();
@@ -137,7 +139,7 @@ namespace Services.App
             Application.Current.Exit();
         }
 
-        private void OnServiceUpdated(object sender, Service service)
+        private void OnServiceUpdated(object? sender, Service service)
         {
             this.DispatcherQueue.TryEnqueue(() => 
             {
@@ -155,6 +157,7 @@ namespace Services.App
         {
             try
             {
+                if (!silent) UpdateStatus("正在加载服务...");
                 var list = await _serviceManager.GetServicesAsync();
                 
                 for (int i = Services.Count - 1; i >= 0; i--)
@@ -203,8 +206,9 @@ namespace Services.App
             {
                 try
                 {
+                    UpdateStatus($"正在启动服务 {id}...");
                     await _serviceManager.StartServiceAsync(id);
-                    UpdateStatus($"服务 {id} 启动指令已发送。");
+                    UpdateStatus($"服务 {id} 已启动。");
                 }
                 catch (Exception ex)
                 {
@@ -219,8 +223,9 @@ namespace Services.App
             {
                 try
                 {
+                    UpdateStatus($"正在停止服务 {id}...");
                     await _serviceManager.StopServiceAsync(id);
-                    UpdateStatus($"服务 {id} 停止指令已发送。");
+                    UpdateStatus($"服务 {id} 已停止。");
                 }
                 catch (Exception ex)
                 {
@@ -238,8 +243,9 @@ namespace Services.App
                 {
                     try
                     {
+                        UpdateStatus($"正在删除服务 {id}...");
                         await _serviceManager.DeleteServiceAsync(id);
-                        LoadServices();
+                        LoadServices(true);
                         UpdateStatus($"服务 {id} 已删除。");
                     }
                     catch (Exception ex)
@@ -393,13 +399,13 @@ namespace Services.App
             };
 
             var stack = new StackPanel { Spacing = 10 };
-            var nameBox = new TextBox { Header = "服务名称", PlaceholderText = "MyService" };
+            var nameBox = new TextBox { Header = "服务名称 (仅字母数字)", PlaceholderText = "MyService" };
             var exeBox = new TextBox { Header = "可执行文件路径", PlaceholderText = "C:\\Path\\To\\App.exe" };
             var argsBox = new TextBox { Header = "启动参数 (可选)" };
             
             var browseBtn = new Button { Content = "浏览..." };
             browseBtn.Click += async (s, args) => {
-                string pickedPath = null;
+                string? pickedPath = null;
                 try
                 {
                     var picker = new FileOpenPicker();
@@ -529,7 +535,7 @@ namespace Services.App
             var browseBtn = new Button { Content = "浏览目录..." };
             
             browseBtn.Click += async (s, args) => {
-                string pickedPath = null;
+                string? pickedPath = null;
                 try
                 {
                     var picker = new FolderPicker();
@@ -573,6 +579,11 @@ namespace Services.App
             }
         }
 
+        private async void OnEditClick(object sender, RoutedEventArgs e)
+        {
+            await ShowDialog("提示", "编辑功能暂未实现。");
+        }
+
         private async Task ShowDialog(string title, string content)
         {
             var dialog = new ContentDialog
@@ -598,7 +609,8 @@ namespace Services.App
             var result = await dialog.ShowAsync();
             return result == ContentDialogResult.Primary;
         }
-        private async Task<string> PickFileWithPowerShell()
+        
+        private async Task<string?> PickFileWithPowerShell()
         {
             try
             {
@@ -613,18 +625,20 @@ namespace Services.App
                 };
 
                 using var process = System.Diagnostics.Process.Start(startInfo);
-                var output = await process.StandardOutput.ReadToEndAsync();
-                await process.WaitForExitAsync();
-                
-                return string.IsNullOrWhiteSpace(output) ? null : output.Trim();
+                if (process != null)
+                {
+                    var output = await process.StandardOutput.ReadToEndAsync();
+                    await process.WaitForExitAsync();
+                    return string.IsNullOrWhiteSpace(output) ? null : output.Trim();
+                }
             }
             catch
             {
-                return null;
             }
+            return null;
         }
 
-        private async Task<string> PickFolderWithPowerShell()
+        private async Task<string?> PickFolderWithPowerShell()
         {
             try
             {
@@ -639,15 +653,17 @@ namespace Services.App
                 };
 
                 using var process = System.Diagnostics.Process.Start(startInfo);
-                var output = await process.StandardOutput.ReadToEndAsync();
-                await process.WaitForExitAsync();
-                
-                return string.IsNullOrWhiteSpace(output) ? null : output.Trim();
+                if (process != null)
+                {
+                    var output = await process.StandardOutput.ReadToEndAsync();
+                    await process.WaitForExitAsync();
+                    return string.IsNullOrWhiteSpace(output) ? null : output.Trim();
+                }
             }
             catch
             {
-                return null;
             }
+            return null;
         }
     }
 }
