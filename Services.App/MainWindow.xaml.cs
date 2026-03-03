@@ -51,7 +51,7 @@ namespace Services.App
             _logManager = new LogManager();
 
             LoadServices();
-            Title = "Windows 服务管理器";
+            Title = "ServicesApp";
             
             this.Closed += (s, e) => _serviceManager.Dispose();
         }
@@ -61,7 +61,7 @@ namespace Services.App
             try
             {
                 _notifyIcon = new System.Windows.Forms.NotifyIcon();
-                _notifyIcon.Text = "Windows 服务管理器";
+                _notifyIcon.Text = "ServicesApp";
                 
                 var iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "icon.ico");
                 if (System.IO.File.Exists(iconPath))

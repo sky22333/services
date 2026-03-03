@@ -26,7 +26,7 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             <StackPanel Orientation="Horizontal" Grid.Column="0" Padding="16,0,0,0" VerticalAlignment="Center" Spacing="12">
-                <TextBlock Text="Windows 服务管理器" Style="{StaticResource CaptionTextBlockStyle}" FontWeight="SemiBold"/>
+                <TextBlock Text="ServicesApp" Style="{StaticResource CaptionTextBlockStyle}" FontWeight="SemiBold"/>
             </StackPanel>
         </Grid>
 
@@ -104,14 +104,14 @@
                             <TextBlock Grid.Column="2" Text="{Binding ExePath}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding ExePath}" Opacity="0.7" Style="{StaticResource CaptionTextBlockStyle}"/>
 
                             <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="4">
-                                <Button Click="OnStartClick" Tag="{Binding Id}" ToolTipService.ToolTip="启动" Style="{StaticResource AccentButtonStyle}" CornerRadius="4">
+                                <Button Click="OnStartClick" Tag="{Binding Id}" ToolTipService.ToolTip="启动" CornerRadius="4">
                                     <FontIcon Glyph="&#xE768;" FontSize="12"/>
                                 </Button>
                                 <Button Click="OnStopClick" Tag="{Binding Id}" ToolTipService.ToolTip="停止" CornerRadius="4">
                                     <FontIcon Glyph="&#xE71A;" FontSize="12"/>
                                 </Button>
                                 <Button Click="OnLogsClick" Tag="{Binding Id}" ToolTipService.ToolTip="日志" CornerRadius="4">
-                                    <FontIcon Glyph="&#xE9F5;" FontSize="12"/>
+                                    <FontIcon Glyph="&#xE9F9;" FontSize="12"/>
                                 </Button>
                                 <Button Click="OnEditClick" Tag="{Binding Id}" ToolTipService.ToolTip="编辑" CornerRadius="4">
                                     <FontIcon Glyph="&#xE70F;" FontSize="12"/>

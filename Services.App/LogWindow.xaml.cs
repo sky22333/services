@@ -29,7 +29,7 @@ namespace Services.App
             var hWnd = WindowNative.GetWindowHandle(this);
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hWnd);
             _appWindow = AppWindow.GetFromWindowId(windowId);
-            _appWindow.Resize(new Windows.Graphics.SizeInt32(1000, 700));
+            _appWindow.Resize(new Windows.Graphics.SizeInt32(1200, 800));
 
             _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
             _timer.Tick += OnTimerTick;

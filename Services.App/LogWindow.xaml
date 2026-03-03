@@ -39,7 +39,7 @@
             <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
                 <Button x:Name="RefreshButton" Content="刷新" Click="OnRefreshClick"/>
                 <Button x:Name="OpenFolderButton" Content="打开日志文件" Click="OnOpenFolderClick"/>
-                <Button Content="关闭" Click="OnCloseClick" Style="{StaticResource AccentButtonStyle}"/>
+                <Button Content="关闭" Click="OnCloseClick"/>
             </StackPanel>
         </Grid>
     </Grid>

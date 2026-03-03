@@ -20,6 +20,8 @@
     <DefineConstants>DISABLE_XAML_GENERATED_MAIN</DefineConstants>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Nullable>enable</Nullable>
+    <Product>ServicesApp</Product>
+    <AssemblyName>ServicesApp</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
