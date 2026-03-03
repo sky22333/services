@@ -19,6 +19,6 @@ namespace Services.App
             m_window.Activate();
         }
 
-        private Window m_window;
+        private Window? m_window;
     }
 }

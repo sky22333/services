@@ -20,23 +20,6 @@ namespace Services.App
     {
         private System.Windows.Forms.NotifyIcon? _notifyIcon;
 
-        public static SolidColorBrush GetStatusColor(string status)
-        {
-            if (status is string s)
-            {
-                return s.ToLower() switch
-                {
-                    "运行中" => new SolidColorBrush(Colors.LimeGreen),
-                    "启动中" => new SolidColorBrush(Colors.Orange),
-                    "已停止" => new SolidColorBrush(Colors.Gray),
-                    "停止中" => new SolidColorBrush(Colors.Orange),
-                    "错误" => new SolidColorBrush(Colors.Red),
-                    _ => new SolidColorBrush(Colors.Transparent)
-                };
-            }
-            return new SolidColorBrush(Colors.Transparent);
-        }
-
         private readonly WindowsServiceManager _serviceManager;
         private readonly EnvironmentManager _envManager;
         private readonly LogManager _logManager;
@@ -48,6 +31,7 @@ namespace Services.App
         public MainWindow()
         {
             this.InitializeComponent();
+            ((FrameworkElement)this.Content).DataContext = this;
             
             ExtendsContentIntoTitleBar = true;
             SetTitleBar(AppTitleBar);

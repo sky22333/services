@@ -24,7 +24,14 @@ namespace Services.Core.Services
 
         public WindowsServiceManager()
         {
-            _dataFilePath = Path.Combine(Path.GetTempPath(), DataFile);
+            var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var dataDir = Path.Combine(appData, "ServicesManager");
+            if (!Directory.Exists(dataDir))
+            {
+                Directory.CreateDirectory(dataDir);
+            }
+            _dataFilePath = Path.Combine(dataDir, DataFile);
+            
             // Don't block constructor with IO, load lazily or init properly
             try { LoadServices(); } catch { }
         }
