@@ -80,7 +80,7 @@
                     </Style>
                 </ListView.ItemContainerStyle>
                 <ListView.ItemTemplate>
-                    <DataTemplate>
+                    <DataTemplate x:DataType="models:Service">
                         <Grid Padding="16" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="2*"/>
@@ -90,36 +90,36 @@
                             </Grid.ColumnDefinitions>
                             
                             <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding Name}" Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                                <TextBlock Text="{x:Bind Name}" Style="{StaticResource BodyStrongTextBlockStyle}"/>
                                 <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,2,0,0">
                                     <Border Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" CornerRadius="4" Padding="4,0">
-                                        <TextBlock Text="{Binding Id}" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.5" FontSize="10"/>
+                                        <TextBlock Text="{x:Bind Id}" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.5" FontSize="10"/>
                                     </Border>
-                                    <TextBlock Text="{Binding Pid}" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.5"/>
+                                    <TextBlock Text="{x:Bind Pid}" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.5"/>
                                 </StackPanel>
                             </StackPanel>
 
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <Ellipse Width="8" Height="8" Fill="{Binding Status, Converter={StaticResource StatusColorConverter}}"/>
-                                <TextBlock Text="{Binding Status}" Style="{StaticResource BodyTextBlockStyle}"/>
+                                <Ellipse Width="8" Height="8" Fill="{x:Bind Status, Converter={StaticResource StatusColorConverter}}"/>
+                                <TextBlock Text="{x:Bind Status}" Style="{StaticResource BodyTextBlockStyle}"/>
                             </StackPanel>
 
-                            <TextBlock Grid.Column="2" Text="{Binding ExePath}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding ExePath}" Opacity="0.7" Style="{StaticResource CaptionTextBlockStyle}"/>
+                            <TextBlock Grid.Column="2" Text="{x:Bind ExePath}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind ExePath}" Opacity="0.7" Style="{StaticResource CaptionTextBlockStyle}"/>
 
                             <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="4">
-                                <Button Click="OnStartClick" Tag="{Binding Id}" ToolTipService.ToolTip="启动" Style="{StaticResource AccentButtonStyle}" CornerRadius="4">
+                                <Button Click="OnStartClick" Tag="{x:Bind Id}" ToolTipService.ToolTip="启动" Style="{StaticResource AccentButtonStyle}" CornerRadius="4">
                                     <FontIcon Glyph="&#xE768;" FontSize="12"/>
                                 </Button>
-                                <Button Click="OnStopClick" Tag="{Binding Id}" ToolTipService.ToolTip="停止" CornerRadius="4">
+                                <Button Click="OnStopClick" Tag="{x:Bind Id}" ToolTipService.ToolTip="停止" CornerRadius="4">
                                     <FontIcon Glyph="&#xE71A;" FontSize="12"/>
                                 </Button>
-                                <Button Click="OnLogsClick" Tag="{Binding Id}" ToolTipService.ToolTip="日志" CornerRadius="4">
+                                <Button Click="OnLogsClick" Tag="{x:Bind Id}" ToolTipService.ToolTip="日志" CornerRadius="4">
                                     <FontIcon Glyph="&#xE9F5;" FontSize="12"/>
                                 </Button>
-                                <Button Click="OnEditClick" Tag="{Binding Id}" ToolTipService.ToolTip="编辑" CornerRadius="4">
+                                <Button Click="OnEditClick" Tag="{x:Bind Id}" ToolTipService.ToolTip="编辑" CornerRadius="4">
                                     <FontIcon Glyph="&#xE70F;" FontSize="12"/>
                                 </Button>
-                                <Button Click="OnDeleteClick" Tag="{Binding Id}" ToolTipService.ToolTip="删除" CornerRadius="4" Background="Transparent" BorderThickness="0">
+                                <Button Click="OnDeleteClick" Tag="{x:Bind Id}" ToolTipService.ToolTip="删除" CornerRadius="4" Background="Transparent" BorderThickness="0">
                                     <FontIcon Glyph="&#xE74D;" FontSize="12" Foreground="#E05050"/>
                                 </Button>
                             </StackPanel>
