@@ -1,0 +1,52 @@
+name: 构建与发布 (Build and Release)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: '发布版本标签 (例如: v2.0.0)'
+        required: true
+        default: 'v2.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: 编译 Windows 应用
+    runs-on: windows-latest
+
+    steps:
+    - name: 检出代码 (Checkout)
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: 配置 MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: 还原依赖 (Restore)
+      run: msbuild Services.sln /t:Restore /p:Configuration=Release
+
+    - name: 编译并发布 (Build & Publish)
+      run: |
+        msbuild ServicesApp/ServicesApp.csproj /t:Publish /p:Configuration=Release /p:RuntimeIdentifier=win-x64 /p:PublishSingleFile=true /p:SelfContained=true /p:PublishDir=${{ github.workspace }}\publish\ /p:DebugType=none
+
+    - name: 打包发布文件 (Zip)
+      working-directory: publish
+      run: |
+        Compress-Archive -Path * -DestinationPath ../ServicesApp-win-x64.zip
+
+    - name: 创建 GitHub Release
+      if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ServicesApp-win-x64.zip
+        generate_release_notes: true
+        tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
+        name: Release ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
+        draft: false
+        prerelease: false
