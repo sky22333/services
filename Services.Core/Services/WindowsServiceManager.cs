@@ -120,9 +120,19 @@ namespace Services.Core.Services
             await Task.Run(() =>
             {
                 var (status, pid) = ServiceUtils.GetServiceStatus(service.Id);
-                service.Status = status;
-                service.Pid = pid;
-                service.UpdatedAt = DateTime.Now;
+                
+                // Only trigger update if status changed
+                if (service.Status != status || service.Pid != pid)
+                {
+                    service.Status = status;
+                    service.Pid = pid;
+                    service.UpdatedAt = DateTime.Now;
+                    ServiceUpdated?.Invoke(this, CloneService(service));
+                }
+                else
+                {
+                    service.UpdatedAt = DateTime.Now;
+                }
             });
         }
 

@@ -49,6 +49,27 @@ namespace ServicesApp
                 {
                     args.Cancel = true;
                     _appWindow.Hide();
+                    UpdateTimerState(false);
+                }
+            };
+
+            // Handle Minimize/Restore events to optimize resource usage
+            _appWindow.Changed += (s, args) =>
+            {
+                if (args.DidPresenterChange)
+                {
+                    var presenter = _appWindow.Presenter as OverlappedPresenter;
+                    if (presenter != null)
+                    {
+                        if (presenter.State == OverlappedPresenterState.Minimized)
+                        {
+                            UpdateTimerState(false);
+                        }
+                        else
+                        {
+                            UpdateTimerState(true);
+                        }
+                    }
                 }
             };
 
@@ -65,7 +86,7 @@ namespace ServicesApp
 
             this.Closed += OnWindowClosed;
 
-            _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+            _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
             _refreshTimer.Tick += async (s, e) =>
             {
                 // Lightweight status refresh only
@@ -163,6 +184,7 @@ namespace ServicesApp
             _appWindow.Show();
             _appWindow.MoveInZOrderAtTop();
             this.Activate();
+            UpdateTimerState(true);
             LoadServices(); // Refresh immediately when showing
         }
 
@@ -547,6 +569,26 @@ namespace ServicesApp
             };
             var result = await dialog.ShowAsync();
             return result == ContentDialogResult.Primary;
+        }
+
+        private void UpdateTimerState(bool isVisible)
+        {
+            if (isVisible)
+            {
+                if (_refreshTimer != null && !_refreshTimer.IsEnabled)
+                {
+                    _refreshTimer.Start();
+                    // Refresh immediately when becoming visible to ensure fresh data
+                    _serviceManager.RefreshServiceStatusesAsync();
+                }
+            }
+            else
+            {
+                if (_refreshTimer != null && _refreshTimer.IsEnabled)
+                {
+                    _refreshTimer.Stop();
+                }
+            }
         }
     }
 }
