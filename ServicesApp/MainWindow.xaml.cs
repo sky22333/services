@@ -362,7 +362,6 @@ namespace ServicesApp
             var startupBox = new ComboBox { Header = "启动类型", HorizontalAlignment = HorizontalAlignment.Stretch };
             startupBox.Items.Add("自动 (开机自启)");
             startupBox.Items.Add("手动");
-            startupBox.Items.Add("禁用");
             startupBox.SelectedIndex = 0;
 
             var autoRestartCheck = new CheckBox { Content = "失败自动重启 (间隔 5 秒)", IsChecked = false };
@@ -410,7 +409,7 @@ namespace ServicesApp
                         Args = argsBox.Text,
                         WorkingDir = workDirBox.Text,
                         AutoRestart = autoRestartCheck.IsChecked ?? false,
-                        StartupType = (ServiceStartupType)(startupBox.SelectedIndex + 2) // Auto=2, Manual=3, Disabled=4
+                        StartupType = (ServiceStartupType)(startupBox.SelectedIndex + 2) // Auto=2, Manual=3
                     };
                     await _serviceManager.CreateServiceAsync(config);
                     LoadServices();

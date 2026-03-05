@@ -66,7 +66,6 @@ namespace Services.Core.Models
     public enum ServiceStartupType
     {
         Auto = 2,
-        Manual = 3,
-        Disabled = 4
+        Manual = 3
     }
 }
