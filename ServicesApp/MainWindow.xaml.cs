@@ -66,7 +66,7 @@ namespace ServicesApp
             this.Closed += OnWindowClosed;
 
             _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
-            _refreshTimer.Tick += async (s, e) => 
+            _refreshTimer.Tick += async (s, e) =>
             {
                 // Lightweight status refresh only
                 await _serviceManager.RefreshServiceStatusesAsync();
@@ -133,7 +133,7 @@ namespace ServicesApp
                 var showCommand = new XamlUICommand();
                 showCommand.Label = "显示窗口";
                 showCommand.ExecuteRequested += (s, e) => ShowWindow();
-                
+
                 var showItem = new MenuFlyoutItem { Text = "显示窗口", Command = showCommand };
 
                 var exitCommand = new XamlUICommand();
@@ -144,7 +144,7 @@ namespace ServicesApp
 
                 // Note: FontIcon is not supported in PopupMenu mode natively without bitmap conversion.
                 // Keeping it simple for now to ensure performance and no visual glitches.
-                
+
                 flyout.Items.Add(showItem);
                 flyout.Items.Add(new MenuFlyoutSeparator());
                 flyout.Items.Add(exitItem);
@@ -358,7 +358,7 @@ namespace ServicesApp
             var exeBox = new TextBox { Header = "可执行文件路径", PlaceholderText = "C:\\Path\\To\\App.exe" };
             var argsBox = new TextBox { Header = "启动参数 (可选)" };
             var workDirBox = new TextBox { Header = "工作目录 (可选)" };
-            
+
             var startupBox = new ComboBox { Header = "启动类型", HorizontalAlignment = HorizontalAlignment.Stretch };
             startupBox.Items.Add("自动 (开机自启)");
             startupBox.Items.Add("手动");
@@ -371,7 +371,7 @@ namespace ServicesApp
             {
                 var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
                 var pickedPath = Win32Helper.PickFile(hwnd, "选择可执行文件");
-                
+
                 if (pickedPath != null)
                 {
                     exeBox.Text = pickedPath;

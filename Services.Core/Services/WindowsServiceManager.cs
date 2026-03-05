@@ -50,7 +50,7 @@ namespace Services.Core.Services
             await Task.WhenAll(tasks);
         }
 
-        public async Task<List<Service>> GetServicesSnapshotAsync()
+        public Task<List<Service>> GetServicesSnapshotAsync()
         {
             lock (_lock)
             {
@@ -82,7 +82,7 @@ namespace Services.Core.Services
                     }
                 }
 
-                return _services.Values.Select(CloneService).ToList();
+                return Task.FromResult(_services.Values.Select(CloneService).ToList());
             }
         }
 
@@ -315,9 +315,9 @@ namespace Services.Core.Services
             // Use P/Invoke to delete service
             IntPtr scmHandle = ServiceUtils.OpenSCManager(null, null, ServiceUtils.SC_MANAGER_CONNECT);
             if (scmHandle == IntPtr.Zero)
-                 throw new Exception($"Failed to open SC Manager. Error: {Marshal.GetLastWin32Error()}");
+                throw new Exception($"Failed to open SC Manager. Error: {Marshal.GetLastWin32Error()}");
 
-            try 
+            try
             {
                 // We need DELETE access
                 IntPtr serviceHandle = ServiceUtils.OpenService(scmHandle, serviceId, ServiceUtils.DELETE);
@@ -355,7 +355,7 @@ namespace Services.Core.Services
                     // FORCE 64-bit registry view to avoid redirection on 64-bit OS
                     using var hklm = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
                     using var servicesKey = hklm.OpenSubKey(@"SYSTEM\CurrentControlSet\Services");
-                    
+
                     if (servicesKey != null)
                     {
                         foreach (var serviceName in servicesKey.GetSubKeyNames())
@@ -379,7 +379,7 @@ namespace Services.Core.Services
                                                     var workingDir = paramsKey.GetValue("WorkingDir") as string;
                                                     var autoRestartVal = paramsKey.GetValue("AutoRestart");
                                                     bool autoRestart = (autoRestartVal is int val && val == 1);
-                                                    
+
                                                     var createdAtStr = paramsKey.GetValue("CreatedAt") as string;
                                                     DateTime createdAt = DateTime.Now;
                                                     if (DateTime.TryParse(createdAtStr, out var dt)) createdAt = dt;

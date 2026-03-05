@@ -44,11 +44,11 @@ namespace Services.Core.Helpers
             uint dwStartType,
             uint dwErrorControl,
             string lpBinaryPathName,
-            string lpLoadOrderGroup,
+            string? lpLoadOrderGroup,
             IntPtr lpdwTagId,
-            string lpDependencies,
-            string lpServiceStartName,
-            string lpPassword);
+            string? lpDependencies,
+            string? lpServiceStartName,
+            string? lpPassword);
 
         [DllImport("advapi32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]

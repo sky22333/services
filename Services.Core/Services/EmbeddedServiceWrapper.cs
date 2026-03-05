@@ -184,16 +184,16 @@ namespace Services.Core.Services
                 _process.Exited += (s, e) =>
                 {
                     _logger?.Log($"Target process exited with code: {_process.ExitCode}");
-                    
+
                     if (_isStopping) return;
 
                     if (_autoRestart)
                     {
-                         _logger?.Log($"Auto-restart enabled. Restarting in {_restartDelayMs}ms...");
-                         Task.Delay(_restartDelayMs).ContinueWith(_ => 
-                         {
-                             if (!_isStopping) StartTargetProcess(config);
-                         });
+                        _logger?.Log($"Auto-restart enabled. Restarting in {_restartDelayMs}ms...");
+                        Task.Delay(_restartDelayMs).ContinueWith(_ =>
+                        {
+                            if (!_isStopping) StartTargetProcess(config);
+                        });
                     }
                     else
                     {
@@ -204,15 +204,15 @@ namespace Services.Core.Services
             catch (Exception ex)
             {
                 _logger?.Log($"CRITICAL: Failed to start target process. {ex.Message}");
-                
+
                 // Critical Fix: Throw exception to signal SCM that startup failed.
                 // This allows Service Control Manager to restart the service if configured.
                 if (!_autoRestart) throw;
-                
-                 Task.Delay(_restartDelayMs).ContinueWith(_ => 
-                 {
-                     if (!_isStopping) StartTargetProcess(config);
-                 });
+
+                Task.Delay(_restartDelayMs).ContinueWith(_ =>
+                {
+                    if (!_isStopping) StartTargetProcess(config);
+                });
             }
         }
     }

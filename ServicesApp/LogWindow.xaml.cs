@@ -17,7 +17,7 @@ namespace ServicesApp
         private readonly string _serviceId;
         private readonly DispatcherTimer _timer;
         private AppWindow _appWindow;
-        
+
         private ObservableCollection<string> _logEntries = new();
         private long _lastPosition = 0;
         private string? _currentLogPath;
@@ -60,7 +60,7 @@ namespace ServicesApp
             try
             {
                 var path = _logManager.GetLatestLogPath(_serviceId);
-                
+
                 // If log file changed (rotated) or force reload
                 if (path != _currentLogPath || forceReload)
                 {
@@ -76,7 +76,7 @@ namespace ServicesApp
                 }
 
                 using var fs = new FileStream(_currentLogPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                
+
                 // If file shrunk, it was truncated/rotated
                 if (fs.Length < _lastPosition)
                 {
@@ -88,7 +88,7 @@ namespace ServicesApp
                 {
                     fs.Seek(_lastPosition, SeekOrigin.Begin);
                     using var reader = new StreamReader(fs);
-                    
+
                     string? line;
                     while ((line = reader.ReadLine()) != null)
                     {
@@ -139,7 +139,7 @@ namespace ServicesApp
 
             var x = mainPos.X + (mainSize.Width - mySize.Width) / 2;
             var y = mainPos.Y + (mainSize.Height - mySize.Height) / 2;
-            
+
             _appWindow.Move(new Windows.Graphics.PointInt32(x, y));
         }
     }
