@@ -60,5 +60,13 @@ namespace Services.Core.Models
         public string? Args { get; set; }
         public string? WorkingDir { get; set; }
         public bool AutoRestart { get; set; }
+        public ServiceStartupType StartupType { get; set; } = ServiceStartupType.Auto;
+    }
+
+    public enum ServiceStartupType
+    {
+        Auto = 2,
+        Manual = 3,
+        Disabled = 4
     }
 }
