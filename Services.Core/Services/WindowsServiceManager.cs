@@ -5,7 +5,6 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.ServiceProcess;
-using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Win32;
 using Services.Core.Helpers;
@@ -15,50 +14,48 @@ namespace Services.Core.Services
 {
     public class WindowsServiceManager : IDisposable
     {
-        private const string DataFile = "windows_services_data.json";
-        private readonly string _dataFilePath;
         private Dictionary<string, Service> _services = new();
         private readonly Dictionary<string, ServiceMonitor> _monitors = new();
-
         public event EventHandler<Service>? ServiceUpdated;
-
         private readonly object _lock = new();
 
         public WindowsServiceManager()
         {
-            var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            var dataDir = Path.Combine(appData, "ServicesManager");
-            if (!Directory.Exists(dataDir))
-            {
-                Directory.CreateDirectory(dataDir);
-            }
-            _dataFilePath = Path.Combine(dataDir, DataFile);
         }
 
         public async Task InitializeAsync()
         {
+            // Reload services to reflect changes
             await LoadServicesAsync();
         }
 
         public async Task<List<Service>> GetServicesAsync()
         {
-            // Do not reload from disk every time. Only memory state is returned.
-            // Disk sync happens on modification.
+            return await GetServicesSnapshotAsync();
+        }
 
-            List<Service> currentServices;
+        public async Task RefreshServiceStatusesAsync()
+        {
+            List<Service> servicesToUpdate;
             lock (_lock)
             {
-                currentServices = _services.Values.ToList();
+                servicesToUpdate = _services.Values.ToList();
             }
 
-            // Concurrently update status for all services
-            // This allows the UI to get fresh status without waiting for the monitor interval
-            var tasks = currentServices.Select(UpdateServiceStatusAsync);
-            await Task.WhenAll(tasks);
+            // Only refresh status if we actually have services
+            if (servicesToUpdate.Count == 0) return;
 
+            // Concurrently update status for all services
+            var tasks = servicesToUpdate.Select(UpdateServiceStatusAsync);
+            await Task.WhenAll(tasks);
+        }
+
+        public async Task<List<Service>> GetServicesSnapshotAsync()
+        {
             lock (_lock)
             {
-                foreach (var service in currentServices)
+                // Ensure monitors exist (lazy initialization) - MOVED HERE from old GetServicesAsync
+                foreach (var service in _services.Values)
                 {
                     if (!_monitors.ContainsKey(service.Id))
                     {
@@ -69,10 +66,14 @@ namespace Services.Core.Services
                             {
                                 if (_services.TryGetValue(service.Id, out var trackedService))
                                 {
-                                    trackedService.Status = e.Status;
-                                    trackedService.Pid = e.Pid;
-                                    trackedService.UpdatedAt = DateTime.Now;
-                                    ServiceUpdated?.Invoke(this, CloneService(trackedService));
+                                    // Check if status actually changed to avoid unnecessary UI updates
+                                    if (trackedService.Status != e.Status || trackedService.Pid != e.Pid)
+                                    {
+                                        trackedService.Status = e.Status;
+                                        trackedService.Pid = e.Pid;
+                                        trackedService.UpdatedAt = DateTime.Now;
+                                        ServiceUpdated?.Invoke(this, CloneService(trackedService));
+                                    }
                                 }
                             }
                         };
@@ -80,6 +81,7 @@ namespace Services.Core.Services
                         _monitors[service.Id] = monitor;
                     }
                 }
+
                 return _services.Values.Select(CloneService).ToList();
             }
         }
@@ -106,6 +108,7 @@ namespace Services.Core.Services
                 Args = s.Args,
                 WorkingDir = s.WorkingDir,
                 AutoStart = s.AutoStart,
+                AutoRestart = s.AutoRestart,
                 CreatedAt = s.CreatedAt,
                 UpdatedAt = s.UpdatedAt
             };
@@ -137,10 +140,10 @@ namespace Services.Core.Services
 
             string serviceName = GenerateServiceName(config.Name);
 
-            lock (_lock)
+            // Double check registry instead of local cache
+            using (var key = Registry.LocalMachine.OpenSubKey($@"SYSTEM\CurrentControlSet\Services\{serviceName}"))
             {
-                if (_services.ContainsKey(serviceName))
-                    throw new Exception($"Service {serviceName} already exists");
+                if (key != null) throw new Exception($"Service {serviceName} already exists");
             }
 
             var module = Process.GetCurrentProcess().MainModule;
@@ -148,15 +151,44 @@ namespace Services.Core.Services
             string currentExe = module.FileName;
 
             // Construct command safely
-            string wrapperCmd = $"\\\"{currentExe}\\\" --service-wrapper \\\"{serviceName}\\\"";
+            string wrapperCmd = $"\"{currentExe}\" --service-wrapper \"{serviceName}\"";
 
-            // We still use string interpolation for sc.exe because of its specific syntax requirements,
-            // but we have validated the input Name.
-            await RunCommandAsync("sc.exe", $"create \"{serviceName}\" binPath= \"{wrapperCmd}\" start= auto DisplayName= \"{config.Name}\"");
+            // Use P/Invoke to create service
+            IntPtr scmHandle = ServiceUtils.OpenSCManager(null, null, ServiceUtils.SC_MANAGER_CREATE_SERVICE);
+            if (scmHandle == IntPtr.Zero)
+                throw new Exception($"Failed to open SC Manager. Error: {Marshal.GetLastWin32Error()}");
 
             try
             {
-                using (var servicesKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services", true))
+                IntPtr serviceHandle = ServiceUtils.CreateService(
+                    scmHandle,
+                    serviceName,
+                    config.Name,
+                    ServiceUtils.SERVICE_ALL_ACCESS,
+                    ServiceUtils.SERVICE_WIN32_OWN_PROCESS,
+                    ServiceUtils.SERVICE_AUTO_START,
+                    ServiceUtils.SERVICE_ERROR_NORMAL,
+                    wrapperCmd,
+                    null,
+                    IntPtr.Zero,
+                    null,
+                    null,
+                    null);
+
+                if (serviceHandle == IntPtr.Zero)
+                    throw new Exception($"Failed to create service. Error: {Marshal.GetLastWin32Error()}");
+
+                ServiceUtils.CloseServiceHandle(serviceHandle);
+            }
+            finally
+            {
+                ServiceUtils.CloseServiceHandle(scmHandle);
+            }
+
+            try
+            {
+                using var hklm = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+                using (var servicesKey = hklm.OpenSubKey(@"SYSTEM\CurrentControlSet\Services", true))
                 {
                     if (servicesKey != null)
                     {
@@ -170,6 +202,9 @@ namespace Services.Core.Services
                                     paramsKey.SetValue("Args", config.Args ?? "");
                                     paramsKey.SetValue("WorkingDir", string.IsNullOrEmpty(config.WorkingDir) ? Path.GetDirectoryName(config.ExePath) ?? "" : config.WorkingDir);
                                     paramsKey.SetValue("DisplayName", config.Name);
+                                    paramsKey.SetValue("AutoRestart", config.AutoRestart ? 1 : 0);
+                                    paramsKey.SetValue("CreatedAt", DateTime.Now.ToString("o"));
+                                    paramsKey.SetValue("ManagedBy", "WindowsServiceManager");
                                 }
                             }
                         }
@@ -178,88 +213,13 @@ namespace Services.Core.Services
             }
             catch (Exception ex)
             {
-                await RunCommandAsync("sc.exe", $"delete \"{serviceName}\"");
+                await DeleteServiceAsync(serviceName);
                 throw new Exception($"Failed to configure service registry: {ex.Message}");
             }
 
             await RunCommandAsync("sc.exe", $"description \"{serviceName}\" \"Managed by Windows Service Manager: {config.Name}\"");
 
-            var service = new Service
-            {
-                Id = serviceName,
-                Name = config.Name,
-                ExePath = config.ExePath,
-                Args = config.Args,
-                WorkingDir = config.WorkingDir,
-                Status = "已停止",
-                CreatedAt = DateTime.Now,
-                UpdatedAt = DateTime.Now,
-                AutoStart = true
-            };
-
-            lock (_lock)
-            {
-                _services[serviceName] = service;
-                SaveServices();
-            }
-        }
-
-        public Task UpdateServiceAsync(string serviceId, ServiceConfig config)
-        {
-            Service? existingService;
-            lock (_lock)
-            {
-                if (!_services.TryGetValue(serviceId, out existingService))
-                {
-                    throw new KeyNotFoundException($"Service {serviceId} not found");
-                }
-            }
-
-            if (!File.Exists(config.ExePath))
-            {
-                throw new FileNotFoundException("Executable not found", config.ExePath);
-            }
-
-            // Update registry configuration
-            try
-            {
-                using (var servicesKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services", true))
-                {
-                    if (servicesKey != null)
-                    {
-                        using (var serviceKey = servicesKey.OpenSubKey(serviceId, true))
-                        {
-                            if (serviceKey != null)
-                            {
-                                using (var paramsKey = serviceKey.CreateSubKey("Parameters"))
-                                {
-                                    paramsKey.SetValue("ExePath", config.ExePath);
-                                    paramsKey.SetValue("Args", config.Args ?? "");
-                                    paramsKey.SetValue("WorkingDir", string.IsNullOrEmpty(config.WorkingDir) ? Path.GetDirectoryName(config.ExePath) ?? "" : config.WorkingDir);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Failed to update service configuration: {ex.Message}");
-            }
-
-            // Update local model
-            lock (_lock)
-            {
-                existingService.ExePath = config.ExePath;
-                existingService.Args = config.Args;
-                existingService.WorkingDir = config.WorkingDir;
-                existingService.UpdatedAt = DateTime.Now;
-
-                SaveServices();
-                ServiceUpdated?.Invoke(this, CloneService(existingService));
-            }
-
-            return Task.CompletedTask;
+            await LoadServicesAsync();
         }
 
         private async Task RunCommandAsync(string command, string args)
@@ -348,44 +308,114 @@ namespace Services.Core.Services
             }
 
             await StopServiceAsync(serviceId);
-            await RunCommandAsync("sc.exe", $"delete {serviceId}");
+
+            // Use P/Invoke to delete service
+            IntPtr scmHandle = ServiceUtils.OpenSCManager(null, null, ServiceUtils.SC_MANAGER_CONNECT);
+            if (scmHandle == IntPtr.Zero)
+                 throw new Exception($"Failed to open SC Manager. Error: {Marshal.GetLastWin32Error()}");
+
+            try 
+            {
+                // We need DELETE access
+                IntPtr serviceHandle = ServiceUtils.OpenService(scmHandle, serviceId, ServiceUtils.DELETE);
+                if (serviceHandle == IntPtr.Zero)
+                    throw new Exception($"Failed to open service for deletion. Error: {Marshal.GetLastWin32Error()}");
+
+                try
+                {
+                    if (!ServiceUtils.DeleteService(serviceHandle))
+                        throw new Exception($"Failed to delete service. Error: {Marshal.GetLastWin32Error()}");
+                }
+                finally
+                {
+                    ServiceUtils.CloseServiceHandle(serviceHandle);
+                }
+            }
+            finally
+            {
+                ServiceUtils.CloseServiceHandle(scmHandle);
+            }
 
             lock (_lock)
             {
                 _services.Remove(serviceId);
-                SaveServices();
             }
         }
 
         private async Task LoadServicesAsync()
         {
-            if (File.Exists(_dataFilePath))
+            var services = new Dictionary<string, Service>();
+            await Task.Run(() =>
             {
                 try
                 {
-                    string json;
-                    using (var reader = new StreamReader(_dataFilePath))
+                    // FORCE 64-bit registry view to avoid redirection on 64-bit OS
+                    using var hklm = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+                    using var servicesKey = hklm.OpenSubKey(@"SYSTEM\CurrentControlSet\Services");
+                    
+                    if (servicesKey != null)
                     {
-                        json = await reader.ReadToEndAsync();
-                    }
-
-                    var list = JsonSerializer.Deserialize<Dictionary<string, Service>>(json);
-                    if (list != null)
-                    {
-                        lock (_lock)
+                        foreach (var serviceName in servicesKey.GetSubKeyNames())
                         {
-                            _services = list;
+                            try
+                            {
+                                using (var serviceKey = servicesKey.OpenSubKey(serviceName))
+                                {
+                                    if (serviceKey != null)
+                                    {
+                                        using (var paramsKey = serviceKey.OpenSubKey("Parameters"))
+                                        {
+                                            if (paramsKey != null)
+                                            {
+                                                // Check if it's managed by us or has our signature parameters
+                                                var exePath = paramsKey.GetValue("ExePath") as string;
+                                                if (!string.IsNullOrEmpty(exePath))
+                                                {
+                                                    var displayName = paramsKey.GetValue("DisplayName") as string ?? serviceName;
+                                                    var args = paramsKey.GetValue("Args") as string;
+                                                    var workingDir = paramsKey.GetValue("WorkingDir") as string;
+                                                    var autoRestartVal = paramsKey.GetValue("AutoRestart");
+                                                    bool autoRestart = (autoRestartVal is int val && val == 1);
+                                                    
+                                                    var createdAtStr = paramsKey.GetValue("CreatedAt") as string;
+                                                    DateTime createdAt = DateTime.Now;
+                                                    if (DateTime.TryParse(createdAtStr, out var dt)) createdAt = dt;
+
+                                                    // Optimized: Get status immediately during initialization to prevent "Unknown" flicker
+                                                    var (status, pid) = ServiceUtils.GetServiceStatus(serviceName);
+
+                                                    var service = new Service
+                                                    {
+                                                        Id = serviceName,
+                                                        Name = displayName,
+                                                        ExePath = exePath,
+                                                        Args = args,
+                                                        WorkingDir = workingDir,
+                                                        AutoRestart = autoRestart,
+                                                        CreatedAt = createdAt,
+                                                        UpdatedAt = DateTime.Now,
+                                                        AutoStart = true, // Assuming auto start for now
+                                                        Status = status,
+                                                        Pid = pid
+                                                    };
+                                                    services[serviceName] = service;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            catch { }
                         }
                     }
                 }
                 catch { }
-            }
-        }
+            });
 
-        private void SaveServices()
-        {
-            var json = JsonSerializer.Serialize(_services, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(_dataFilePath, json);
+            lock (_lock)
+            {
+                _services = services;
+            }
         }
     }
 }

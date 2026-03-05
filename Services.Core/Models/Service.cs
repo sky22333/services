@@ -42,6 +42,7 @@ namespace Services.Core.Models
         }
 
         public bool AutoStart { get; set; }
+        public bool AutoRestart { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
 
@@ -58,5 +59,6 @@ namespace Services.Core.Models
         public string ExePath { get; set; } = string.Empty;
         public string? Args { get; set; }
         public string? WorkingDir { get; set; }
+        public bool AutoRestart { get; set; }
     }
 }

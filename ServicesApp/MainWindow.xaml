@@ -16,27 +16,90 @@
     <Grid x:Name="RootGrid">
         <Grid.Resources>
             <local:StatusColorConverter x:Key="StatusColorConverter" />
+            <local:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+            
+            <Style x:Key="CardStyle" TargetType="Grid">
+                <Setter Property="Background" Value="{ThemeResource LayerFillColorDefaultBrush}"/>
+                <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="CornerRadius" Value="8"/>
+            </Style>
+
+            <Style x:Key="ActionIconButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="8"/>
+                <Setter Property="CornerRadius" Value="4"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Grid x:Name="RootGrid" Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}">
+                                <VisualStateManager.VisualStateGroups>
+                                    <VisualStateGroup x:Name="CommonStates">
+                                        <VisualState x:Name="Normal" />
+                                        <VisualState x:Name="PointerOver">
+                                            <VisualState.Setters>
+                                                <Setter Target="RootGrid.Background" Value="{ThemeResource SystemFillColorNeutralBackgroundBrush}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Pressed">
+                                            <VisualState.Setters>
+                                                <Setter Target="RootGrid.Background" Value="{ThemeResource SystemFillColorNeutralBackgroundBrush}" />
+                                                <Setter Target="ContentPresenter.RenderTransform">
+                                                    <Setter.Value>
+                                                        <ScaleTransform ScaleX="0.96" ScaleY="0.96" />
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Setter Target="ContentPresenter.Opacity" Value="0.8" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Disabled">
+                                            <VisualState.Setters>
+                                                <Setter Target="ContentPresenter.Opacity" Value="0.5" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                </VisualStateManager.VisualStateGroups>
+                                <ContentPresenter x:Name="ContentPresenter" 
+                                                  Content="{TemplateBinding Content}"
+                                                  Padding="{TemplateBinding Padding}"
+                                                  HorizontalAlignment="Center" 
+                                                  VerticalAlignment="Center"
+                                                  RenderTransformOrigin="0.5,0.5">
+                                    <ContentPresenter.RenderTransform>
+                                        <ScaleTransform ScaleX="1" ScaleY="1"/>
+                                    </ContentPresenter.RenderTransform>
+                                </ContentPresenter>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
         </Grid.Resources>
+        
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/> <!-- TitleBar -->
+            <RowDefinition Height="Auto"/> <!-- CommandBar -->
+            <RowDefinition Height="*"/>    <!-- Content -->
+            <RowDefinition Height="Auto"/> <!-- Status -->
         </Grid.RowDefinitions>
 
-        <Grid x:Name="AppTitleBar" Height="40" Grid.Row="0" Background="Transparent">
+        <!-- Custom Title Bar -->
+        <Grid x:Name="AppTitleBar" Height="44" Grid.Row="0" Background="Transparent" Padding="16,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
-            <StackPanel Orientation="Horizontal" Grid.Column="0" Padding="16,0,0,0" VerticalAlignment="Center" Spacing="12">
-                <TextBlock Text="ServicesApp" Style="{StaticResource CaptionTextBlockStyle}" FontWeight="SemiBold"/>
+            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                <FontIcon Glyph="&#xE7F4;" FontSize="16" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                <TextBlock Text="Services Manager" Style="{StaticResource CaptionTextBlockStyle}" FontWeight="SemiBold" VerticalAlignment="Center"/>
             </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="1" Padding="16,0,16,8">
-            <Grid Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8">
-                <CommandBar DefaultLabelPosition="Right" Background="Transparent" IsOpen="False">
+        <!-- Toolbar Area -->
+        <Grid Grid.Row="1" Padding="16,0,16,12">
+            <Grid Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" Padding="4">
+                <CommandBar DefaultLabelPosition="Right" Background="Transparent" IsOpen="False" HorizontalAlignment="Left">
                     <AppBarButton Icon="Add" Label="添加服务" Click="OnAddServiceClick" ToolTipService.ToolTip="创建一个新服务"/>
                     <AppBarSeparator/>
                     <AppBarButton Icon="Refresh" Label="刷新" Click="OnRefreshClick" ToolTipService.ToolTip="刷新服务列表"/>
@@ -51,25 +114,28 @@
             </Grid>
         </Grid>
 
-        <Grid Grid.Row="2" Padding="16,0,16,16">
+        <!-- Main Content -->
+        <Grid Grid.Row="2" Padding="16,0,16,0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
+            <!-- Headers -->
             <Grid Grid.Row="0" Padding="16,0,16,8" Margin="0,0,12,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="2*"/>
-                    <ColumnDefinition Width="150"/>
+                    <ColumnDefinition Width="120"/>
                     <ColumnDefinition Width="3*"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="140"/> 
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="服务名称" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.6"/>
                 <TextBlock Grid.Column="1" Text="状态" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.6"/>
                 <TextBlock Grid.Column="2" Text="程序路径" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.6"/>
-                <TextBlock Grid.Column="3" Text="操作" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.6" Margin="0,0,20,0"/>
+                <TextBlock Grid.Column="3" Text="操作" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.6" HorizontalAlignment="Right" Margin="0,0,8,0"/>
             </Grid>
 
+            <!-- Service List -->
             <ListView Grid.Row="1" ItemsSource="{Binding Services}" SelectionMode="None">
                 <ListView.ItemContainerStyle>
                     <Style TargetType="ListViewItem">
@@ -77,51 +143,56 @@
                         <Setter Property="Padding" Value="0"/>
                         <Setter Property="Margin" Value="0,0,0,8"/>
                         <Setter Property="CornerRadius" Value="8"/>
-                        <Setter Property="Background" Value="Transparent"/>
+                        <!-- Disable default hover/selection background to let our card handle it, or keep it subtle -->
                     </Style>
                 </ListView.ItemContainerStyle>
                 <ListView.ItemTemplate>
                     <DataTemplate>
-                        <Grid Padding="16" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                        <Grid Padding="16,12" Style="{StaticResource CardStyle}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="2*"/>
-                                <ColumnDefinition Width="150"/>
+                                <ColumnDefinition Width="120"/>
                                 <ColumnDefinition Width="3*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             
+                            <!-- Name & ID -->
                             <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding Name}" Style="{StaticResource BodyStrongTextBlockStyle}"/>
-                                <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,2,0,0">
-                                    <Border Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" CornerRadius="4" Padding="4,0">
-                                        <TextBlock Text="{Binding Id}" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.5" FontSize="10"/>
+                                <TextBlock Text="{Binding Name}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis"/>
+                                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
+                                    <Border Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" CornerRadius="4" Padding="6,2">
+                                        <TextBlock Text="{Binding Id}" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.7" FontSize="11" FontFamily="Consolas"/>
                                     </Border>
-                                    <TextBlock Text="{Binding Pid}" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.5"/>
+                                    <StackPanel Orientation="Horizontal" Spacing="4" Visibility="{Binding Pid, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                         <TextBlock Text="PID:" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.5" FontSize="11"/>
+                                         <TextBlock Text="{Binding Pid}" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.5" FontSize="11"/>
+                                    </StackPanel>
                                 </StackPanel>
                             </StackPanel>
 
+                            <!-- Status -->
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <Ellipse Width="8" Height="8" Fill="{Binding Status, Converter={StaticResource StatusColorConverter}}"/>
-                                <TextBlock Text="{Binding Status}" Style="{StaticResource BodyTextBlockStyle}"/>
+                                <Ellipse Width="10" Height="10" Fill="{Binding Status, Converter={StaticResource StatusColorConverter}}"/>
+                                <TextBlock Text="{Binding Status}" Style="{StaticResource BodyTextBlockStyle}" VerticalAlignment="Center"/>
+                                <FontIcon Glyph="&#xE72C;" FontSize="12" Opacity="0.5" ToolTipService.ToolTip="自动重启已启用" Visibility="{Binding AutoRestart, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="4,0,0,0"/>
                             </StackPanel>
 
-                            <TextBlock Grid.Column="2" Text="{Binding ExePath}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding ExePath}" Opacity="0.7" Style="{StaticResource CaptionTextBlockStyle}"/>
+                            <!-- Path -->
+                            <TextBlock Grid.Column="2" Text="{Binding ExePath}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding ExePath}" Opacity="0.7" Style="{StaticResource CaptionTextBlockStyle}" FontFamily="Consolas"/>
 
-                            <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="4">
-                                <Button Click="OnStartClick" Tag="{Binding Id}" ToolTipService.ToolTip="启动" CornerRadius="4">
-                                    <FontIcon Glyph="&#xE768;" FontSize="12"/>
+                            <!-- Actions -->
+                            <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right">
+                                <Button Click="OnStartClick" Tag="{Binding Id}" ToolTipService.ToolTip="启动" Style="{StaticResource ActionIconButtonStyle}">
+                                    <FontIcon Glyph="&#xE768;" FontSize="14" Foreground="{ThemeResource SystemFillColorSuccessBrush}"/>
                                 </Button>
-                                <Button Click="OnStopClick" Tag="{Binding Id}" ToolTipService.ToolTip="停止" CornerRadius="4">
-                                    <FontIcon Glyph="&#xE71A;" FontSize="12"/>
+                                <Button Click="OnStopClick" Tag="{Binding Id}" ToolTipService.ToolTip="停止" Style="{StaticResource ActionIconButtonStyle}">
+                                    <FontIcon Glyph="&#xE71A;" FontSize="14" Foreground="{ThemeResource SystemFillColorCriticalBrush}"/>
                                 </Button>
-                                <Button Click="OnLogsClick" Tag="{Binding Id}" ToolTipService.ToolTip="日志" CornerRadius="4">
-                                    <FontIcon Glyph="&#xE9F9;" FontSize="12"/>
+                                <Button Click="OnLogsClick" Tag="{Binding Id}" ToolTipService.ToolTip="日志" Style="{StaticResource ActionIconButtonStyle}">
+                                    <FontIcon Glyph="&#xE9F9;" FontSize="14"/>
                                 </Button>
-                                <Button Click="OnEditClick" Tag="{Binding Id}" ToolTipService.ToolTip="编辑" CornerRadius="4">
-                                    <FontIcon Glyph="&#xE70F;" FontSize="12"/>
-                                </Button>
-                                <Button Click="OnDeleteClick" Tag="{Binding Id}" ToolTipService.ToolTip="删除" CornerRadius="4" Background="Transparent" BorderThickness="0">
-                                    <FontIcon Glyph="&#xE74D;" FontSize="12" Foreground="#E05050"/>
+                                <Button Click="OnDeleteClick" Tag="{Binding Id}" ToolTipService.ToolTip="删除" Style="{StaticResource ActionIconButtonStyle}">
+                                    <FontIcon Glyph="&#xE74D;" FontSize="14" Foreground="{ThemeResource SystemFillColorCriticalBrush}"/>
                                 </Button>
                             </StackPanel>
                         </Grid>
@@ -130,7 +201,8 @@
             </ListView>
         </Grid>
 
-        <Grid Grid.Row="3" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Padding="16,6" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
+        <!-- Status Bar -->
+        <Grid Grid.Row="3" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Padding="16,6" BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
             <TextBlock x:Name="StatusText" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.6"/>
         </Grid>
     </Grid>

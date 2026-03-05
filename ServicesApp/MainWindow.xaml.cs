@@ -65,8 +65,12 @@ namespace ServicesApp
 
             this.Closed += OnWindowClosed;
 
-            _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-            _refreshTimer.Tick += (s, e) => LoadServices(true);
+            _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+            _refreshTimer.Tick += async (s, e) => 
+            {
+                // Lightweight status refresh only
+                await _serviceManager.RefreshServiceStatusesAsync();
+            };
             _refreshTimer.Start();
         }
 
@@ -77,7 +81,7 @@ namespace ServicesApp
             // Initialize tray icon first as it's UI related
             InitializeTrayIcon();
 
-            // Load data asynchronously
+            // Load full configuration ONCE on startup
             await _serviceManager.InitializeAsync();
             LoadServices();
         }
@@ -112,7 +116,8 @@ namespace ServicesApp
                 RootGrid.Children.Add(TrayIcon);
 
                 // Use SecondWindow mode to support context menu in unpackaged apps
-                TrayIcon.ContextMenuMode = H.NotifyIcon.ContextMenuMode.SecondWindow;
+                // Optimization: Switch to PopupMenu mode to guarantee no scrollbars and native performance
+                TrayIcon.ContextMenuMode = H.NotifyIcon.ContextMenuMode.PopupMenu;
                 TrayIcon.NoLeftClickDelay = true; // Improve responsiveness
 
                 // Setup events
@@ -120,35 +125,31 @@ namespace ServicesApp
 
                 // Initialize Flyout
                 var flyout = new MenuFlyout();
-                flyout.AreOpenCloseAnimationsEnabled = false; // Disable animations for better performance
 
-                // Use standard style with necessary adjustments only
-                var presenterStyle = new Style(typeof(MenuFlyoutPresenter));
-                presenterStyle.Setters.Add(new Setter(ScrollViewer.VerticalScrollBarVisibilityProperty, ScrollBarVisibility.Disabled));
-                presenterStyle.Setters.Add(new Setter(ScrollViewer.HorizontalScrollBarVisibilityProperty, ScrollBarVisibility.Disabled));
-                presenterStyle.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(4)));
-                presenterStyle.Setters.Add(new Setter(Control.CornerRadiusProperty, new CornerRadius(4)));
-                presenterStyle.Setters.Add(new Setter(FrameworkElement.MaxWidthProperty, 240));
+                // No manual style needed for PopupMenu mode
+                // flyout.Placement is ignored in PopupMenu mode
 
-                flyout.MenuFlyoutPresenterStyle = presenterStyle;
-                flyout.Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.Top; // Prefer top placement
+                // Use XamlUICommand to ensure events are fired correctly in PopupMenu mode
+                var showCommand = new XamlUICommand();
+                showCommand.Label = "显示窗口";
+                showCommand.ExecuteRequested += (s, e) => ShowWindow();
+                
+                var showItem = new MenuFlyoutItem { Text = "显示窗口", Command = showCommand };
 
-                var showItem = new MenuFlyoutItem { Text = "显示窗口", Icon = new FontIcon { Glyph = "\uE7F4" } };
-                showItem.Click += OnShowWindowClick;
+                var exitCommand = new XamlUICommand();
+                exitCommand.Label = "退出";
+                exitCommand.ExecuteRequested += (s, e) => RealExit();
 
-                var exitItem = new MenuFlyoutItem { Text = "退出", Icon = new FontIcon { Glyph = "\uE711" } };
-                exitItem.Click += OnExitClick;
+                var exitItem = new MenuFlyoutItem { Text = "退出", Command = exitCommand };
 
+                // Note: FontIcon is not supported in PopupMenu mode natively without bitmap conversion.
+                // Keeping it simple for now to ensure performance and no visual glitches.
+                
                 flyout.Items.Add(showItem);
                 flyout.Items.Add(new MenuFlyoutSeparator());
                 flyout.Items.Add(exitItem);
 
                 TrayIcon.ContextFlyout = flyout;
-
-                // Ensure icon is created
-                TrayIcon.ForceCreate();
-
-                // Ensure icon is visible
                 TrayIcon.Visibility = Visibility.Visible;
             }
             catch (Exception ex)
@@ -208,7 +209,7 @@ namespace ServicesApp
             try
             {
                 if (!silent) UpdateStatus("正在加载服务...");
-                var list = await _serviceManager.GetServicesAsync();
+                var list = await _serviceManager.GetServicesSnapshotAsync();
 
                 for (int i = Services.Count - 1; i >= 0; i--)
                 {
@@ -244,9 +245,18 @@ namespace ServicesApp
             }
         }
 
-        private void OnRefreshClick(object sender, RoutedEventArgs e)
+        private async void OnRefreshClick(object sender, RoutedEventArgs e)
         {
-            LoadServices();
+            UpdateStatus("正在刷新服务列表...");
+            await _serviceManager.InitializeAsync(); // Force reload from registry AND refresh status atomically
+            LoadServices(); // Load the now-complete data into UI
+            var count = Services.Count;
+            UpdateStatus($"已加载 {count} 个服务。");
+
+            // Manual GC to keep memory footprint low after refresh
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
         }
 
         private void UpdateStatus(string message)
@@ -347,39 +357,31 @@ namespace ServicesApp
             var nameBox = new TextBox { Header = "服务名称 (仅字母数字)", PlaceholderText = "MyService" };
             var exeBox = new TextBox { Header = "可执行文件路径", PlaceholderText = "C:\\Path\\To\\App.exe" };
             var argsBox = new TextBox { Header = "启动参数 (可选)" };
+            var workDirBox = new TextBox { Header = "工作目录 (可选)" };
+            var autoRestartCheck = new CheckBox { Content = "失败自动重启 (间隔 5 秒)", IsChecked = false };
 
-            var browseBtn = new Button { Content = "浏览..." };
-            browseBtn.Click += async (s, args) =>
+            var browseBtn = new Button { Content = "选择程序" };
+            browseBtn.Click += (s, args) =>
             {
-                string? pickedPath = null;
-                try
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                var pickedPath = Win32Helper.PickFile(hwnd, "选择可执行文件");
+                
+                if (pickedPath != null)
                 {
-                    var picker = new FileOpenPicker();
-                    picker.ViewMode = PickerViewMode.List;
-                    picker.SuggestedStartLocation = PickerLocationId.ComputerFolder;
-                    picker.FileTypeFilter.Add(".exe");
-                    picker.FileTypeFilter.Add(".bat");
-                    picker.FileTypeFilter.Add(".cmd");
-
-                    var hwnd = WindowNative.GetWindowHandle(this);
-                    WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-
-                    var file = await picker.PickSingleFileAsync();
-                    if (file != null) pickedPath = file.Path;
+                    exeBox.Text = pickedPath;
+                    if (string.IsNullOrWhiteSpace(workDirBox.Text))
+                    {
+                        workDirBox.Text = System.IO.Path.GetDirectoryName(pickedPath) ?? "";
+                    }
                 }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"WinUI Picker failed: {ex}");
-                    pickedPath = await PickFileWithPowerShell();
-                }
-
-                if (pickedPath != null) exeBox.Text = pickedPath;
             };
 
             stack.Children.Add(nameBox);
             stack.Children.Add(exeBox);
             stack.Children.Add(browseBtn);
             stack.Children.Add(argsBox);
+            stack.Children.Add(workDirBox);
+            stack.Children.Add(autoRestartCheck);
             dialog.Content = stack;
 
             var result = await dialog.ShowAsync();
@@ -397,7 +399,9 @@ namespace ServicesApp
                     {
                         Name = nameBox.Text,
                         ExePath = exeBox.Text,
-                        Args = argsBox.Text
+                        Args = argsBox.Text,
+                        WorkingDir = workDirBox.Text,
+                        AutoRestart = autoRestartCheck.IsChecked ?? false
                     };
                     await _serviceManager.CreateServiceAsync(config);
                     LoadServices();
@@ -437,7 +441,8 @@ namespace ServicesApp
                 Minimum = 1,
                 Maximum = 365,
                 SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline,
-                Width = 120,
+                Width = 200,
+                VerticalAlignment = VerticalAlignment.Center,
                 Header = "保留天数"
             };
 
@@ -480,26 +485,10 @@ namespace ServicesApp
             var pathBox = new TextBox { Header = "目录路径", PlaceholderText = "C:\\My\\Tools" };
             var browseBtn = new Button { Content = "浏览目录..." };
 
-            browseBtn.Click += async (s, args) =>
+            browseBtn.Click += (s, args) =>
             {
-                string? pickedPath = null;
-                try
-                {
-                    var picker = new FolderPicker();
-                    picker.SuggestedStartLocation = PickerLocationId.ComputerFolder;
-                    picker.FileTypeFilter.Add("*");
-
-                    var hwnd = WindowNative.GetWindowHandle(this);
-                    WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-
-                    var folder = await picker.PickSingleFolderAsync();
-                    if (folder != null) pickedPath = folder.Path;
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"WinUI Picker failed: {ex}");
-                    pickedPath = await PickFolderWithPowerShell();
-                }
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                var pickedPath = Win32Helper.PickFolder(hwnd, "选择目录");
 
                 if (pickedPath != null) pathBox.Text = pickedPath;
             };
@@ -522,114 +511,6 @@ namespace ServicesApp
                 catch (Exception ex)
                 {
                     await ShowDialog("错误", $"更新环境变量失败: {ex.Message}");
-                }
-            }
-        }
-
-        private async void OnEditClick(object sender, RoutedEventArgs e)
-        {
-            if (sender is Button btn && btn.Tag is string serviceId)
-            {
-                var service = Services.FirstOrDefault(s => s.Id == serviceId);
-                if (service == null) return;
-
-                var dialog = new ContentDialog
-                {
-                    Title = $"编辑服务 - {service.Name}",
-                    PrimaryButtonText = "保存",
-                    CloseButtonText = "取消",
-                    XamlRoot = this.Content.XamlRoot
-                };
-
-                var stack = new StackPanel { Spacing = 10 };
-                var nameBox = new TextBox { Header = "服务名称 (不可修改)", Text = service.Name, IsReadOnly = true };
-                var exeBox = new TextBox { Header = "可执行文件路径", Text = service.ExePath, PlaceholderText = "C:\\Path\\To\\App.exe" };
-                var argsBox = new TextBox { Header = "启动参数 (可选)", Text = service.Args ?? "" };
-                var workDirBox = new TextBox { Header = "工作目录 (可选)", Text = service.WorkingDir ?? "" };
-
-                var browseBtn = new Button { Content = "浏览..." };
-                browseBtn.Click += async (s, args) =>
-                {
-                    string? pickedPath = null;
-                    try
-                    {
-                        var picker = new FileOpenPicker();
-                        picker.ViewMode = PickerViewMode.List;
-                        picker.SuggestedStartLocation = PickerLocationId.ComputerFolder;
-                        picker.FileTypeFilter.Add(".exe");
-                        picker.FileTypeFilter.Add(".bat");
-                        picker.FileTypeFilter.Add(".cmd");
-
-                        var hwnd = WindowNative.GetWindowHandle(this);
-                        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-
-                        var file = await picker.PickSingleFileAsync();
-                        if (file != null) pickedPath = file.Path;
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"WinUI Picker failed: {ex}");
-                        pickedPath = await PickFileWithPowerShell();
-                    }
-
-                    if (pickedPath != null)
-                    {
-                        exeBox.Text = pickedPath;
-                        if (string.IsNullOrWhiteSpace(workDirBox.Text))
-                        {
-                            workDirBox.Text = System.IO.Path.GetDirectoryName(pickedPath) ?? "";
-                        }
-                    }
-                };
-
-                stack.Children.Add(nameBox);
-                stack.Children.Add(exeBox);
-                stack.Children.Add(browseBtn);
-                stack.Children.Add(argsBox);
-                stack.Children.Add(workDirBox);
-                dialog.Content = stack;
-
-                var result = await dialog.ShowAsync();
-                if (result == ContentDialogResult.Primary)
-                {
-                    if (string.IsNullOrWhiteSpace(exeBox.Text))
-                    {
-                        await ShowDialog("验证错误", "可执行文件路径不能为空。");
-                        return;
-                    }
-
-                    try
-                    {
-                        var config = new ServiceConfig
-                        {
-                            Name = service.Name,
-                            ExePath = exeBox.Text,
-                            Args = argsBox.Text,
-                            WorkingDir = workDirBox.Text
-                        };
-
-                        if (service.Status == "运行中" || service.Status == "启动中")
-                        {
-                            var confirm = await ShowConfirmDialog("需要重启", "修改服务配置需要重启服务才能生效。是否立即重启？");
-                            await _serviceManager.UpdateServiceAsync(service.Id, config);
-                            if (confirm)
-                            {
-                                await _serviceManager.StopServiceAsync(service.Id);
-                                await _serviceManager.StartServiceAsync(service.Id);
-                            }
-                        }
-                        else
-                        {
-                            await _serviceManager.UpdateServiceAsync(service.Id, config);
-                        }
-
-                        LoadServices();
-                        UpdateStatus($"服务 {config.Name} 配置已更新。");
-                    }
-                    catch (Exception ex)
-                    {
-                        await ShowDialog("错误", $"更新服务失败: {ex.Message}");
-                    }
                 }
             }
         }
@@ -658,62 +539,6 @@ namespace ServicesApp
             };
             var result = await dialog.ShowAsync();
             return result == ContentDialogResult.Primary;
-        }
-
-        private async Task<string?> PickFileWithPowerShell()
-        {
-            try
-            {
-                var script = "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.OpenFileDialog; $f.Filter = 'Executables|*.exe;*.bat;*.cmd|All files|*.*'; if ($f.ShowDialog() -eq 'OK') { $f.FileName }";
-                var startInfo = new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = "powershell.exe",
-                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"{script}\"",
-                    RedirectStandardOutput = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-
-                using var process = System.Diagnostics.Process.Start(startInfo);
-                if (process != null)
-                {
-                    var output = await process.StandardOutput.ReadToEndAsync();
-                    await process.WaitForExitAsync();
-                    return string.IsNullOrWhiteSpace(output) ? null : output.Trim();
-                }
-            }
-            catch
-            {
-            }
-            return null;
-        }
-
-        private async Task<string?> PickFolderWithPowerShell()
-        {
-            try
-            {
-                var script = "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.FolderBrowserDialog; if ($f.ShowDialog() -eq 'OK') { $f.SelectedPath }";
-                var startInfo = new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = "powershell.exe",
-                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"{script}\"",
-                    RedirectStandardOutput = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-
-                using var process = System.Diagnostics.Process.Start(startInfo);
-                if (process != null)
-                {
-                    var output = await process.StandardOutput.ReadToEndAsync();
-                    await process.WaitForExitAsync();
-                    return string.IsNullOrWhiteSpace(output) ? null : output.Trim();
-                }
-            }
-            catch
-            {
-            }
-            return null;
         }
     }
 }

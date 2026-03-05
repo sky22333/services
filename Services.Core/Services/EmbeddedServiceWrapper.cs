@@ -3,7 +3,9 @@ using System.Diagnostics;
 using System.IO;
 using System.ServiceProcess;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Win32;
+using Services.Core.Helpers;
 
 namespace Services.Core.Services
 {
@@ -11,9 +13,11 @@ namespace Services.Core.Services
     {
         private Process? _process;
         private string _serviceName;
-        private StreamWriter? _logWriter;
-        private object _logLock = new object();
+        private AsyncLogger? _logger;
         private int _retentionDays = 7;
+        private bool _autoRestart = false;
+        private int _restartDelayMs = 5000;
+        private bool _isStopping = false;
 
         public EmbeddedServiceWrapper(string serviceName)
         {
@@ -28,8 +32,10 @@ namespace Services.Core.Services
                 var config = LoadConfig();
 
                 _retentionDays = LoadRetentionDays();
+                _autoRestart = LoadAutoRestart();
 
                 CleanupOldLogs();
+                InitLogger();
 
                 StartTargetProcess(config);
             }
@@ -39,6 +45,14 @@ namespace Services.Core.Services
                 ExitCode = 1064;
                 Stop();
             }
+        }
+
+        private void InitLogger()
+        {
+            var logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "windows_service_logs");
+            Directory.CreateDirectory(logDir);
+            var logFile = Path.Combine(logDir, $"{_serviceName}_{DateTime.Now:yyyyMMdd_HHmmss}.log");
+            _logger = new AsyncLogger(logFile);
         }
 
         private void LogCriticalError(Exception ex)
@@ -55,6 +69,7 @@ namespace Services.Core.Services
 
         protected override void OnStop()
         {
+            _isStopping = true;
             if (_process != null && !_process.HasExited)
             {
                 try
@@ -64,11 +79,11 @@ namespace Services.Core.Services
                 }
                 catch (Exception ex)
                 {
-                    WriteLog($"Error stopping process: {ex.Message}");
+                    _logger?.Log($"Error stopping process: {ex.Message}");
                 }
             }
 
-            CloseLogWriter();
+            _logger?.Dispose();
         }
 
         private (string ExePath, string Args, string WorkingDir) LoadConfig()
@@ -95,16 +110,24 @@ namespace Services.Core.Services
                     var val = key.GetValue("LogRetentionDays");
                     if (val is int days) return days;
                 }
-
-                using var globalKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WindowsServiceManager");
-                if (globalKey != null)
-                {
-                    var val = globalKey.GetValue("LogRetentionDays");
-                    if (val is int days) return days;
-                }
             }
             catch { }
             return 7;
+        }
+
+        private bool LoadAutoRestart()
+        {
+            try
+            {
+                using var key = Registry.LocalMachine.OpenSubKey($@"SYSTEM\CurrentControlSet\Services\{_serviceName}\Parameters");
+                if (key != null)
+                {
+                    var val = key.GetValue("AutoRestart");
+                    if (val is int v) return v == 1;
+                }
+            }
+            catch { }
+            return false;
         }
 
         private void CleanupOldLogs()
@@ -131,13 +154,6 @@ namespace Services.Core.Services
 
         private void StartTargetProcess((string ExePath, string Args, string WorkingDir) config)
         {
-            var logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "windows_service_logs");
-            Directory.CreateDirectory(logDir);
-            var logFile = Path.Combine(logDir, $"{_serviceName}_{DateTime.Now:yyyyMMdd_HHmmss}.log");
-
-            var fs = new FileStream(logFile, FileMode.Create, FileAccess.Write, FileShare.Read);
-            _logWriter = new StreamWriter(fs) { AutoFlush = true };
-
             try
             {
                 var psi = new ProcessStartInfo
@@ -153,8 +169,8 @@ namespace Services.Core.Services
 
                 _process = new Process { StartInfo = psi };
 
-                _process.OutputDataReceived += (s, e) => WriteLog(e.Data);
-                _process.ErrorDataReceived += (s, e) => WriteLog("ERROR: " + e.Data);
+                _process.OutputDataReceived += (s, e) => { if (e.Data != null) _logger?.Log(e.Data); };
+                _process.ErrorDataReceived += (s, e) => { if (e.Data != null) _logger?.Log("ERROR: " + e.Data); };
 
                 if (!_process.Start())
                 {
@@ -167,42 +183,33 @@ namespace Services.Core.Services
                 _process.EnableRaisingEvents = true;
                 _process.Exited += (s, e) =>
                 {
-                    WriteLog($"Target process exited with code: {_process.ExitCode}");
-                    Stop();
+                    _logger?.Log($"Target process exited with code: {_process.ExitCode}");
+                    
+                    if (_isStopping) return;
+
+                    if (_autoRestart)
+                    {
+                         _logger?.Log($"Auto-restart enabled. Restarting in {_restartDelayMs}ms...");
+                         Task.Delay(_restartDelayMs).ContinueWith(_ => 
+                         {
+                             if (!_isStopping) StartTargetProcess(config);
+                         });
+                    }
+                    else
+                    {
+                        Stop();
+                    }
                 };
             }
             catch (Exception ex)
             {
-                WriteLog($"CRITICAL: Failed to start target process. {ex.Message}");
-                throw;
-            }
-        }
-
-        private void WriteLog(string? message)
-        {
-            if (message == null) return;
-            lock (_logLock)
-            {
-                try
-                {
-                    if (_logWriter != null)
-                    {
-                        _logWriter.WriteLine($"[{DateTime.Now:HH:mm:ss}] {message}");
-                    }
-                }
-                catch { }
-            }
-        }
-
-        private void CloseLogWriter()
-        {
-            lock (_logLock)
-            {
-                if (_logWriter != null)
-                {
-                    try { _logWriter.Close(); } catch { }
-                    _logWriter = null;
-                }
+                _logger?.Log($"CRITICAL: Failed to start target process. {ex.Message}");
+                if (!_autoRestart) throw;
+                
+                 Task.Delay(_restartDelayMs).ContinueWith(_ => 
+                 {
+                     if (!_isStopping) StartTargetProcess(config);
+                 });
             }
         }
     }
