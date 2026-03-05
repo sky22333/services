@@ -358,6 +358,13 @@ namespace ServicesApp
             var exeBox = new TextBox { Header = "可执行文件路径", PlaceholderText = "C:\\Path\\To\\App.exe" };
             var argsBox = new TextBox { Header = "启动参数 (可选)" };
             var workDirBox = new TextBox { Header = "工作目录 (可选)" };
+            
+            var startupBox = new ComboBox { Header = "启动类型", HorizontalAlignment = HorizontalAlignment.Stretch };
+            startupBox.Items.Add("自动 (开机自启)");
+            startupBox.Items.Add("手动");
+            startupBox.Items.Add("禁用");
+            startupBox.SelectedIndex = 0;
+
             var autoRestartCheck = new CheckBox { Content = "失败自动重启 (间隔 5 秒)", IsChecked = false };
 
             var browseBtn = new Button { Content = "选择程序" };
@@ -381,6 +388,7 @@ namespace ServicesApp
             stack.Children.Add(browseBtn);
             stack.Children.Add(argsBox);
             stack.Children.Add(workDirBox);
+            stack.Children.Add(startupBox);
             stack.Children.Add(autoRestartCheck);
             dialog.Content = stack;
 
@@ -401,7 +409,8 @@ namespace ServicesApp
                         ExePath = exeBox.Text,
                         Args = argsBox.Text,
                         WorkingDir = workDirBox.Text,
-                        AutoRestart = autoRestartCheck.IsChecked ?? false
+                        AutoRestart = autoRestartCheck.IsChecked ?? false,
+                        StartupType = (ServiceStartupType)(startupBox.SelectedIndex + 2) // Auto=2, Manual=3, Disabled=4
                     };
                     await _serviceManager.CreateServiceAsync(config);
                     LoadServices();

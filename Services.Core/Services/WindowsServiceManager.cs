@@ -166,7 +166,7 @@ namespace Services.Core.Services
                     config.Name,
                     ServiceUtils.SERVICE_ALL_ACCESS,
                     ServiceUtils.SERVICE_WIN32_OWN_PROCESS,
-                    ServiceUtils.SERVICE_AUTO_START,
+                    (uint)config.StartupType,
                     ServiceUtils.SERVICE_ERROR_NORMAL,
                     wrapperCmd,
                     null,
