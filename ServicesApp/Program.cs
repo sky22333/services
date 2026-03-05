@@ -16,6 +16,15 @@ namespace ServicesApp
         {
             if (args.Length >= 2 && args[0] == "--service-wrapper")
             {
+                // Fix: Ensure CurrentDirectory is set to app folder, not System32
+                // This is crucial for loading dependencies correctly when running as a Service
+                var module = Process.GetCurrentProcess().MainModule;
+                if (module != null)
+                {
+                    var dir = System.IO.Path.GetDirectoryName(module.FileName);
+                    if (!string.IsNullOrEmpty(dir)) System.IO.Directory.SetCurrentDirectory(dir);
+                }
+
                 var serviceName = args[1];
                 using var wrapper = new EmbeddedServiceWrapper(serviceName);
                 ServiceBase.Run(wrapper);

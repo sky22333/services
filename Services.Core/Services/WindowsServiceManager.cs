@@ -219,6 +219,9 @@ namespace Services.Core.Services
 
             await RunCommandAsync("sc.exe", $"description \"{serviceName}\" \"Managed by Windows Service Manager: {config.Name}\"");
 
+            // Configure recovery actions: Restart service after 1 minute if it fails (e.g. dependencies not ready)
+            await RunCommandAsync("sc.exe", $"failure \"{serviceName}\" reset= 86400 actions= restart/60000/restart/60000/restart/60000");
+
             await LoadServicesAsync();
         }
 

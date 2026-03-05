@@ -204,6 +204,9 @@ namespace Services.Core.Services
             catch (Exception ex)
             {
                 _logger?.Log($"CRITICAL: Failed to start target process. {ex.Message}");
+                
+                // Critical Fix: Throw exception to signal SCM that startup failed.
+                // This allows Service Control Manager to restart the service if configured.
                 if (!_autoRestart) throw;
                 
                  Task.Delay(_restartDelayMs).ContinueWith(_ => 
