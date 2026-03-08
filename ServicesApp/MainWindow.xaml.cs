@@ -1,7 +1,5 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Data;
 using Microsoft.UI;
 using Services.Core.Services;
 using Services.Core.Models;
@@ -9,10 +7,10 @@ using System.Collections.ObjectModel;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Windows.Storage.Pickers;
 using WinRT.Interop;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml.Input;
+using System.Threading;
 
 namespace ServicesApp
 {
@@ -24,8 +22,7 @@ namespace ServicesApp
         private readonly LogManager _logManager;
         private AppWindow _appWindow;
         private bool _isRealExit = false;
-        private DispatcherTimer? _refreshTimer;
-        private bool _isLoadServicesRunning = false;
+        private int _isLoadServicesRunning = 0;
 
         public ObservableCollection<Service> Services { get; } = new();
 
@@ -49,29 +46,10 @@ namespace ServicesApp
                 {
                     args.Cancel = true;
                     _appWindow.Hide();
-                    UpdateTimerState(false);
                 }
             };
 
-            // Handle Minimize/Restore events to optimize resource usage
-            _appWindow.Changed += (s, args) =>
-            {
-                if (args.DidPresenterChange)
-                {
-                    var presenter = _appWindow.Presenter as OverlappedPresenter;
-                    if (presenter != null)
-                    {
-                        if (presenter.State == OverlappedPresenterState.Minimized)
-                        {
-                            UpdateTimerState(false);
-                        }
-                        else
-                        {
-                            UpdateTimerState(true);
-                        }
-                    }
-                }
-            };
+
 
             _serviceManager = new WindowsServiceManager();
             _serviceManager.ServiceUpdated += OnServiceUpdated;
@@ -85,14 +63,6 @@ namespace ServicesApp
             Title = "ServicesApp";
 
             this.Closed += OnWindowClosed;
-
-            _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-            _refreshTimer.Tick += async (s, e) =>
-            {
-                // Lightweight status refresh only
-                await _serviceManager.RefreshServiceStatusesAsync();
-            };
-            _refreshTimer.Start();
         }
 
         private async void OnWindowActivated(object sender, WindowActivatedEventArgs args)
@@ -109,8 +79,6 @@ namespace ServicesApp
 
         private void OnWindowClosed(object sender, WindowEventArgs args)
         {
-            _refreshTimer?.Stop();
-            _refreshTimer = null;
             if (_serviceManager != null)
             {
                 _serviceManager.ServiceUpdated -= OnServiceUpdated;
@@ -184,7 +152,6 @@ namespace ServicesApp
             _appWindow.Show();
             _appWindow.MoveInZOrderAtTop();
             this.Activate();
-            UpdateTimerState(true);
             LoadServices(); // Refresh immediately when showing
         }
 
@@ -195,17 +162,6 @@ namespace ServicesApp
             Application.Current.Exit();
         }
 
-        private void OnShowWindowClick(object sender, RoutedEventArgs e)
-        {
-            ShowWindow();
-        }
-
-        private void OnExitClick(object sender, RoutedEventArgs e)
-        {
-            RealExit();
-        }
-
-
         private void OnServiceUpdated(object? sender, Service service)
         {
             this.DispatcherQueue.TryEnqueue(() =>
@@ -213,21 +169,42 @@ namespace ServicesApp
                 var existing = Services.FirstOrDefault(s => s.Id == service.Id);
                 if (existing != null)
                 {
-                    existing.Status = service.Status;
-                    existing.Pid = service.Pid;
-                    existing.UpdatedAt = service.UpdatedAt;
+                    // Only update if values actually changed to avoid unnecessary UI redraws
+                    bool changed = false;
+                    
+                    if (existing.Status != service.Status)
+                    {
+                        existing.Status = service.Status;
+                        changed = true;
+                    }
+                    
+                    if (existing.Pid != service.Pid)
+                    {
+                        existing.Pid = service.Pid;
+                        changed = true;
+                    }
+                    
+                    // Always update timestamp if any change occurred
+                    if (changed)
+                    {
+                        existing.UpdatedAt = service.UpdatedAt;
+                    }
                 }
             });
         }
 
         private async void LoadServices(bool silent = false)
         {
-            if (_isLoadServicesRunning) return;
+            if (Interlocked.CompareExchange(ref _isLoadServicesRunning, 1, 0) != 0)
+                return;
 
             // Optimization: Do not refresh UI if window is hidden and this is an automated refresh
-            if (silent && _appWindow != null && !_appWindow.IsVisible) return;
+            if (silent && _appWindow != null && !_appWindow.IsVisible)
+            {
+                Interlocked.Exchange(ref _isLoadServicesRunning, 0);
+                return;
+            }
 
-            _isLoadServicesRunning = true;
             try
             {
                 if (!silent) UpdateStatus("正在加载服务...");
@@ -263,7 +240,7 @@ namespace ServicesApp
             }
             finally
             {
-                _isLoadServicesRunning = false;
+                Interlocked.Exchange(ref _isLoadServicesRunning, 0);
             }
         }
 
@@ -274,11 +251,6 @@ namespace ServicesApp
             LoadServices(); // Load the now-complete data into UI
             var count = Services.Count;
             UpdateStatus($"已加载 {count} 个服务。");
-
-            // Manual GC to keep memory footprint low after refresh
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            GC.Collect();
         }
 
         private void UpdateStatus(string message)
@@ -569,26 +541,6 @@ namespace ServicesApp
             };
             var result = await dialog.ShowAsync();
             return result == ContentDialogResult.Primary;
-        }
-
-        private void UpdateTimerState(bool isVisible)
-        {
-            if (isVisible)
-            {
-                if (_refreshTimer != null && !_refreshTimer.IsEnabled)
-                {
-                    _refreshTimer.Start();
-                    // Refresh immediately when becoming visible to ensure fresh data
-                    _serviceManager.RefreshServiceStatusesAsync();
-                }
-            }
-            else
-            {
-                if (_refreshTimer != null && _refreshTimer.IsEnabled)
-                {
-                    _refreshTimer.Stop();
-                }
-            }
         }
     }
 }

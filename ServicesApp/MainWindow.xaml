@@ -158,7 +158,17 @@
                             
                             <!-- Name & ID -->
                             <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding Name}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding Name}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis">
+                                    <ToolTipService.ToolTip>
+                                        <ToolTip>
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"/>
+                                                <TextBlock Text="{Binding CreatedAt, StringFormat='创建时间: {0:yyyy-MM-dd HH:mm:ss}'}" FontSize="12" Opacity="0.8"/>
+                                                <TextBlock Text="{Binding UpdatedAt, StringFormat='最后更新: {0:yyyy-MM-dd HH:mm:ss}'}" FontSize="12" Opacity="0.8"/>
+                                            </StackPanel>
+                                        </ToolTip>
+                                    </ToolTipService.ToolTip>
+                                </TextBlock>
                                 <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
                                     <Border Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" CornerRadius="4" Padding="6,2">
                                         <TextBlock Text="{Binding Id}" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.7" FontSize="11" FontFamily="Consolas"/>

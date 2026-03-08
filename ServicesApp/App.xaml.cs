@@ -1,8 +1,4 @@
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Navigation;
-using ServicesApp;
-using System;
 
 namespace ServicesApp
 {
@@ -15,12 +11,8 @@ namespace ServicesApp
 
         protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
-            m_window = new MainWindow();
-            m_window.Activate();
+            var window = new MainWindow();
+            window.Activate();
         }
-
-
-
-        private Window? m_window;
     }
 }

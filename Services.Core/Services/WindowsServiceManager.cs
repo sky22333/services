@@ -16,6 +16,7 @@ namespace Services.Core.Services
     {
         private Dictionary<string, Service> _services = new();
         private readonly Dictionary<string, ServiceMonitor> _monitors = new();
+        private readonly Dictionary<ServiceMonitor, string> _monitorToServiceId = new();
         public event EventHandler<Service>? ServiceUpdated;
         private readonly object _lock = new();
 
@@ -29,60 +30,55 @@ namespace Services.Core.Services
             await LoadServicesAsync();
         }
 
-        public async Task<List<Service>> GetServicesAsync()
-        {
-            return await GetServicesSnapshotAsync();
-        }
-
-        public async Task RefreshServiceStatusesAsync()
-        {
-            List<Service> servicesToUpdate;
-            lock (_lock)
-            {
-                servicesToUpdate = _services.Values.ToList();
-            }
-
-            // Only refresh status if we actually have services
-            if (servicesToUpdate.Count == 0) return;
-
-            // Concurrently update status for all services
-            var tasks = servicesToUpdate.Select(UpdateServiceStatusAsync);
-            await Task.WhenAll(tasks);
-        }
-
         public Task<List<Service>> GetServicesSnapshotAsync()
         {
             lock (_lock)
             {
-                // Ensure monitors exist (lazy initialization) - MOVED HERE from old GetServicesAsync
+                // Ensure monitors exist (lazy initialization)
                 foreach (var service in _services.Values)
                 {
                     if (!_monitors.ContainsKey(service.Id))
                     {
                         var monitor = new ServiceMonitor(service.Id);
-                        monitor.StatusChanged += (s, e) =>
-                        {
-                            lock (_lock)
-                            {
-                                if (_services.TryGetValue(service.Id, out var trackedService))
-                                {
-                                    // Check if status actually changed to avoid unnecessary UI updates
-                                    if (trackedService.Status != e.Status || trackedService.Pid != e.Pid)
-                                    {
-                                        trackedService.Status = e.Status;
-                                        trackedService.Pid = e.Pid;
-                                        trackedService.UpdatedAt = DateTime.Now;
-                                        ServiceUpdated?.Invoke(this, CloneService(trackedService));
-                                    }
-                                }
-                            }
-                        };
+                        monitor.StatusChanged += OnMonitorStatusChanged;
                         monitor.StartMonitoring();
                         _monitors[service.Id] = monitor;
+                        _monitorToServiceId[monitor] = service.Id; // Add reverse mapping
                     }
                 }
 
                 return Task.FromResult(_services.Values.Select(CloneService).ToList());
+            }
+        }
+
+        private void OnMonitorStatusChanged(object? sender, ServiceMonitor.ServiceStatusEventArgs e)
+        {
+            Service? clonedService = null;
+
+            lock (_lock)
+            {
+                // O(1) lookup using reverse mapping instead of O(n) iteration
+                if (sender is ServiceMonitor monitor && 
+                    _monitorToServiceId.TryGetValue(monitor, out var serviceId) &&
+                    _services.TryGetValue(serviceId, out var trackedService))
+                {
+                    // Check if status actually changed to avoid unnecessary UI updates
+                    if (trackedService.Status != e.Status || trackedService.Pid != e.Pid)
+                    {
+                        trackedService.Status = e.Status;
+                        trackedService.Pid = e.Pid;
+                        trackedService.UpdatedAt = DateTime.Now;
+                        clonedService = CloneService(trackedService);
+                        
+                        System.Diagnostics.Debug.WriteLine($"[WindowsServiceManager] Service '{serviceId}' status updated: {e.Status} (PID: {e.Pid})");
+                    }
+                }
+            }
+
+            // Invoke event outside of lock to prevent deadlock
+            if (clonedService != null)
+            {
+                ServiceUpdated?.Invoke(this, clonedService);
             }
         }
 
@@ -93,6 +89,7 @@ namespace Services.Core.Services
                 monitor.Dispose();
             }
             _monitors.Clear();
+            _monitorToServiceId.Clear();
             GC.SuppressFinalize(this);
         }
 
@@ -107,7 +104,6 @@ namespace Services.Core.Services
                 ExePath = s.ExePath,
                 Args = s.Args,
                 WorkingDir = s.WorkingDir,
-                AutoStart = s.AutoStart,
                 AutoRestart = s.AutoRestart,
                 CreatedAt = s.CreatedAt,
                 UpdatedAt = s.UpdatedAt
@@ -117,6 +113,7 @@ namespace Services.Core.Services
         private async Task UpdateServiceStatusAsync(Service service)
         {
             if (service == null) return;
+            
             await Task.Run(() =>
             {
                 var (status, pid) = ServiceUtils.GetServiceStatus(service.Id);
@@ -127,6 +124,9 @@ namespace Services.Core.Services
                     service.Status = status;
                     service.Pid = pid;
                     service.UpdatedAt = DateTime.Now;
+                    
+                    System.Diagnostics.Debug.WriteLine($"[WindowsServiceManager] Manual status update for '{service.Id}': {status} (PID: {pid})");
+                    
                     ServiceUpdated?.Invoke(this, CloneService(service));
                 }
                 else
@@ -281,8 +281,9 @@ namespace Services.Core.Services
                 }
                 catch (System.ServiceProcess.TimeoutException) { }
             }
+            
+            // UpdateServiceStatusAsync already triggers ServiceUpdated event
             await UpdateServiceStatusAsync(service);
-            ServiceUpdated?.Invoke(this, service);
         }
 
         public async Task StopServiceAsync(string serviceId)
@@ -303,8 +304,9 @@ namespace Services.Core.Services
                 }
                 catch (System.ServiceProcess.TimeoutException) { }
             }
+            
+            // UpdateServiceStatusAsync already triggers ServiceUpdated event
             await UpdateServiceStatusAsync(service);
-            ServiceUpdated?.Invoke(this, service);
         }
 
         public async Task DeleteServiceAsync(string serviceId)
@@ -314,13 +316,16 @@ namespace Services.Core.Services
                 if (!_services.ContainsKey(serviceId)) throw new Exception("Service not found");
             }
 
+            // Stop service first
+            await StopServiceAsync(serviceId);
+
+            // Then dispose and remove monitor to avoid callback issues
             if (_monitors.TryGetValue(serviceId, out var monitor))
             {
                 monitor.Dispose();
                 _monitors.Remove(serviceId);
+                _monitorToServiceId.Remove(monitor); // Remove reverse mapping
             }
-
-            await StopServiceAsync(serviceId);
 
             // Use P/Invoke to delete service
             IntPtr scmHandle = ServiceUtils.OpenSCManager(null, null, ServiceUtils.SC_MANAGER_CONNECT);
@@ -407,7 +412,6 @@ namespace Services.Core.Services
                                                         AutoRestart = autoRestart,
                                                         CreatedAt = createdAt,
                                                         UpdatedAt = DateTime.Now,
-                                                        AutoStart = true, // Assuming auto start for now
                                                         Status = status,
                                                         Pid = pid
                                                     };

@@ -13,6 +13,8 @@ namespace ServicesApp
 {
     public sealed partial class LogWindow : Window
     {
+        private const int MAX_LOG_ENTRIES = 10000;
+        
         private readonly LogManager _logManager;
         private readonly string _serviceId;
         private readonly DispatcherTimer _timer;
@@ -93,6 +95,12 @@ namespace ServicesApp
                     while ((line = reader.ReadLine()) != null)
                     {
                         _logEntries.Add(line);
+                        
+                        // Limit maximum entries to prevent memory overflow
+                        if (_logEntries.Count > MAX_LOG_ENTRIES)
+                        {
+                            _logEntries.RemoveAt(0);
+                        }
                     }
                     _lastPosition = fs.Position;
 

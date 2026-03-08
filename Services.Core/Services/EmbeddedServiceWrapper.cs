@@ -154,6 +154,20 @@ namespace Services.Core.Services
 
         private void StartTargetProcess((string ExePath, string Args, string WorkingDir) config)
         {
+            // Clean up old process if exists
+            if (_process != null)
+            {
+                try
+                {
+                    _process.OutputDataReceived -= null;
+                    _process.ErrorDataReceived -= null;
+                    _process.Exited -= null;
+                    _process.Dispose();
+                }
+                catch { }
+                _process = null;
+            }
+
             try
             {
                 var psi = new ProcessStartInfo
@@ -204,6 +218,17 @@ namespace Services.Core.Services
             catch (Exception ex)
             {
                 _logger?.Log($"CRITICAL: Failed to start target process. {ex.Message}");
+
+                // Clean up failed process
+                if (_process != null)
+                {
+                    try
+                    {
+                        _process.Dispose();
+                    }
+                    catch { }
+                    _process = null;
+                }
 
                 // Critical Fix: Throw exception to signal SCM that startup failed.
                 // This allows Service Control Manager to restart the service if configured.

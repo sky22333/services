@@ -10,23 +10,8 @@ namespace Services.Core.Helpers
         public const uint SC_MANAGER_CREATE_SERVICE = 0x0002;
         public const uint SERVICE_ALL_ACCESS = 0xF01FF;
         public const uint SERVICE_WIN32_OWN_PROCESS = 0x00000010;
-        public const uint SERVICE_AUTO_START = 0x00000002;
         public const uint SERVICE_ERROR_NORMAL = 0x00000001;
         public const uint DELETE = 0x00010000;
-
-        [StructLayout(LayoutKind.Sequential)]
-        public struct SERVICE_STATUS_PROCESS
-        {
-            public uint dwServiceType;
-            public uint dwCurrentState;
-            public uint dwControlsAccepted;
-            public uint dwWin32ExitCode;
-            public uint dwServiceSpecificExitCode;
-            public uint dwCheckPoint;
-            public uint dwWaitHint;
-            public uint dwProcessId;
-            public uint dwServiceFlags;
-        }
 
         [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         public static extern IntPtr OpenSCManager(string? machineName, string? databaseName, uint dwAccess);
@@ -57,14 +42,15 @@ namespace Services.Core.Helpers
         [DllImport("advapi32.dll", SetLastError = true)]
         public static extern bool CloseServiceHandle(IntPtr hSCObject);
 
-        [DllImport("advapi32.dll", SetLastError = true)]
-        public static extern bool QueryServiceStatusEx(IntPtr hService, int infoLevel, IntPtr lpBuffer, uint cbBufSize, out uint pcbBytesNeeded);
-
+        /// <summary>
+        /// Gets the current status of a Windows service by name
+        /// </summary>
+        /// <param name="serviceName">Name of the service</param>
+        /// <returns>Tuple containing status string and process ID</returns>
         public static (string Status, int Pid) GetServiceStatus(string serviceName)
         {
             IntPtr hSCManager = IntPtr.Zero;
             IntPtr hService = IntPtr.Zero;
-            IntPtr ptr = IntPtr.Zero;
 
             try
             {
@@ -74,22 +60,8 @@ namespace Services.Core.Helpers
                 hService = OpenService(hSCManager, serviceName, SERVICE_QUERY_STATUS);
                 if (hService == IntPtr.Zero) return ("未知", 0);
 
-                uint bytesNeeded;
-                ptr = Marshal.AllocHGlobal(1024);
-
-                if (QueryServiceStatusEx(hService, 0, ptr, 1024, out bytesNeeded))
-                {
-                    var status = Marshal.PtrToStructure<SERVICE_STATUS_PROCESS>(ptr);
-                    string statusStr = status.dwCurrentState switch
-                    {
-                        1 => "已停止",
-                        2 => "启动中",
-                        3 => "停止中",
-                        4 => "运行中",
-                        _ => "未知"
-                    };
-                    return (statusStr, (int)status.dwProcessId);
-                }
+                // Use shared helper for status query
+                return ServiceStatusHelper.QueryStatus(hService);
             }
             catch
             {
@@ -97,7 +69,6 @@ namespace Services.Core.Helpers
             }
             finally
             {
-                if (ptr != IntPtr.Zero) Marshal.FreeHGlobal(ptr);
                 if (hService != IntPtr.Zero) CloseServiceHandle(hService);
                 if (hSCManager != IntPtr.Zero) CloseServiceHandle(hSCManager);
             }
