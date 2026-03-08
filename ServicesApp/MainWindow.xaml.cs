@@ -43,35 +43,10 @@ namespace ServicesApp
             _appWindow.Resize(new Windows.Graphics.SizeInt32(1800, 1200));
 
             // Hide window instead of closing
-            _appWindow.Closing += (s, args) =>
-            {
-                if (!_isRealExit)
-                {
-                    args.Cancel = true;
-                    _appWindow.Hide();
-                    UpdateTimerState(false);
-                }
-            };
+            _appWindow.Closing += OnAppWindowClosing;
 
             // Handle Minimize/Restore events to optimize resource usage
-            _appWindow.Changed += (s, args) =>
-            {
-                if (args.DidPresenterChange)
-                {
-                    var presenter = _appWindow.Presenter as OverlappedPresenter;
-                    if (presenter != null)
-                    {
-                        if (presenter.State == OverlappedPresenterState.Minimized)
-                        {
-                            UpdateTimerState(false);
-                        }
-                        else
-                        {
-                            UpdateTimerState(true);
-                        }
-                    }
-                }
-            };
+            _appWindow.Changed += OnAppWindowChanged;
 
             _serviceManager = new WindowsServiceManager();
             _serviceManager.ServiceUpdated += OnServiceUpdated;
@@ -107,16 +82,66 @@ namespace ServicesApp
             LoadServices();
         }
 
+        private void OnAppWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
+        {
+            if (!_isRealExit)
+            {
+                args.Cancel = true;
+                _appWindow.Hide();
+                UpdateTimerState(false);
+            }
+        }
+
+        private void OnAppWindowChanged(AppWindow sender, AppWindowChangedEventArgs args)
+        {
+            if (args.DidPresenterChange)
+            {
+                var presenter = _appWindow.Presenter as OverlappedPresenter;
+                if (presenter != null)
+                {
+                    if (presenter.State == OverlappedPresenterState.Minimized)
+                    {
+                        UpdateTimerState(false);
+                    }
+                    else
+                    {
+                        UpdateTimerState(true);
+                    }
+                }
+            }
+        }
+
+        private void OnTrayIconDoubleTapped(object sender, RoutedEventArgs e)
+        {
+            ShowWindow();
+        }
+
         private void OnWindowClosed(object sender, WindowEventArgs args)
         {
+            // 解除所有事件订阅，防止内存泄漏
+            if (_appWindow != null)
+            {
+                _appWindow.Closing -= OnAppWindowClosing;
+                _appWindow.Changed -= OnAppWindowChanged;
+            }
+            
+            if (TrayIcon != null)
+            {
+                TrayIcon.DoubleTapped -= OnTrayIconDoubleTapped;
+            }
+            
             _refreshTimer?.Stop();
             _refreshTimer = null;
+            
             if (_serviceManager != null)
             {
                 _serviceManager.ServiceUpdated -= OnServiceUpdated;
                 _serviceManager.Dispose();
             }
+            
             TrayIcon?.Dispose();
+            
+            this.Closed -= OnWindowClosed;
         }
 
         private void InitializeTrayIcon()
@@ -142,7 +167,7 @@ namespace ServicesApp
                 TrayIcon.NoLeftClickDelay = true; // Improve responsiveness
 
                 // Setup events
-                TrayIcon.DoubleTapped += (s, e) => ShowWindow();
+                TrayIcon.DoubleTapped += OnTrayIconDoubleTapped;
 
                 // Initialize Flyout
                 var flyout = new MenuFlyout();
@@ -193,16 +218,6 @@ namespace ServicesApp
             _isRealExit = true;
             TrayIcon?.Dispose();
             Application.Current.Exit();
-        }
-
-        private void OnShowWindowClick(object sender, RoutedEventArgs e)
-        {
-            ShowWindow();
-        }
-
-        private void OnExitClick(object sender, RoutedEventArgs e)
-        {
-            RealExit();
         }
 
 
@@ -274,11 +289,6 @@ namespace ServicesApp
             LoadServices(); // Load the now-complete data into UI
             var count = Services.Count;
             UpdateStatus($"已加载 {count} 个服务。");
-
-            // Manual GC to keep memory footprint low after refresh
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            GC.Collect();
         }
 
         private void UpdateStatus(string message)

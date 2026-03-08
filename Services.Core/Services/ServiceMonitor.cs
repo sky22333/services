@@ -211,10 +211,18 @@ namespace Services.Core.Services
         {
             _isMonitoring = false;
 
-            _registeredWait?.Unregister(null);
-            _registeredWait = null;
+            // 等待回调完成，防止资源泄漏
+            if (_registeredWait != null)
+            {
+                var waitHandle = new ManualResetEvent(false);
+                _registeredWait.Unregister(waitHandle);
+                waitHandle.WaitOne(TimeSpan.FromSeconds(2));
+                waitHandle.Dispose();
+                _registeredWait = null;
+            }
 
-            _notifyEvent?.Close();
+            // 使用 Dispose 而非 Close
+            _notifyEvent?.Dispose();
             _notifyEvent = null;
 
             if (_hService != IntPtr.Zero)
@@ -237,6 +245,12 @@ namespace Services.Core.Services
         }
 
         public void Dispose()
+        {
+            StopMonitoring();
+            GC.SuppressFinalize(this);
+        }
+
+        ~ServiceMonitor()
         {
             StopMonitoring();
         }

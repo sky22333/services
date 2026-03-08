@@ -83,7 +83,9 @@ namespace Services.Core.Services
                 }
             }
 
+            // 同步释放 logger
             _logger?.Dispose();
+            _logger = null;
         }
 
         private (string ExePath, string Args, string WorkingDir) LoadConfig()

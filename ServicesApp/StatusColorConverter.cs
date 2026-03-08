@@ -46,4 +46,21 @@ namespace ServicesApp
             throw new NotImplementedException();
         }
     }
+
+    public class DateTimeFormatConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, string language)
+        {
+            if (value is DateTime dt)
+            {
+                return dt.ToString("yyyy-MM-dd HH:mm:ss");
+            }
+            return "未知";
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, string language)
+        {
+            throw new NotImplementedException();
+        }
+    }
 }

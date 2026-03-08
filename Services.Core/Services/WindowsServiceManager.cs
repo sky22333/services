@@ -27,6 +27,9 @@ namespace Services.Core.Services
         {
             // Reload services to reflect changes
             await LoadServicesAsync();
+            
+            // 清理不再存在的服务的 monitors
+            CleanupOrphanedMonitors();
         }
 
         public async Task<List<Service>> GetServicesAsync()
@@ -54,17 +57,19 @@ namespace Services.Core.Services
         {
             lock (_lock)
             {
-                // Ensure monitors exist (lazy initialization) - MOVED HERE from old GetServicesAsync
+                // Ensure monitors exist (lazy initialization)
                 foreach (var service in _services.Values)
                 {
+                    // 防止重复创建 monitor
                     if (!_monitors.ContainsKey(service.Id))
                     {
-                        var monitor = new ServiceMonitor(service.Id);
+                        var serviceId = service.Id; // 捕获局部变量，避免闭包问题
+                        var monitor = new ServiceMonitor(serviceId);
                         monitor.StatusChanged += (s, e) =>
                         {
                             lock (_lock)
                             {
-                                if (_services.TryGetValue(service.Id, out var trackedService))
+                                if (_services.TryGetValue(serviceId, out var trackedService))
                                 {
                                     // Check if status actually changed to avoid unnecessary UI updates
                                     if (trackedService.Status != e.Status || trackedService.Pid != e.Pid)
@@ -78,7 +83,7 @@ namespace Services.Core.Services
                             }
                         };
                         monitor.StartMonitoring();
-                        _monitors[service.Id] = monitor;
+                        _monitors[serviceId] = monitor;
                     }
                 }
 
@@ -88,12 +93,32 @@ namespace Services.Core.Services
 
         public void Dispose()
         {
-            foreach (var monitor in _monitors.Values)
+            lock (_lock)
             {
-                monitor.Dispose();
+                foreach (var monitor in _monitors.Values)
+                {
+                    monitor.Dispose();
+                }
+                _monitors.Clear();
+                _services.Clear();
             }
-            _monitors.Clear();
             GC.SuppressFinalize(this);
+        }
+
+        private void CleanupOrphanedMonitors()
+        {
+            lock (_lock)
+            {
+                var orphanedKeys = _monitors.Keys.Except(_services.Keys).ToList();
+                foreach (var key in orphanedKeys)
+                {
+                    if (_monitors.TryGetValue(key, out var monitor))
+                    {
+                        monitor.Dispose();
+                        _monitors.Remove(key);
+                    }
+                }
+            }
         }
 
         private static Service CloneService(Service s)
@@ -312,12 +337,13 @@ namespace Services.Core.Services
             lock (_lock)
             {
                 if (!_services.ContainsKey(serviceId)) throw new Exception("Service not found");
-            }
-
-            if (_monitors.TryGetValue(serviceId, out var monitor))
-            {
-                monitor.Dispose();
-                _monitors.Remove(serviceId);
+                
+                // 清理 monitor
+                if (_monitors.TryGetValue(serviceId, out var monitor))
+                {
+                    monitor.Dispose();
+                    _monitors.Remove(serviceId);
+                }
             }
 
             await StopServiceAsync(serviceId);
@@ -352,6 +378,12 @@ namespace Services.Core.Services
             lock (_lock)
             {
                 _services.Remove(serviceId);
+                
+                // 再次确保 monitor 已清理
+                if (_monitors.ContainsKey(serviceId))
+                {
+                    _monitors.Remove(serviceId);
+                }
             }
         }
 
@@ -418,15 +450,32 @@ namespace Services.Core.Services
                                     }
                                 }
                             }
-                            catch { }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Failed to load service {serviceName}: {ex.Message}");
+                            }
                         }
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"LoadServicesAsync error: {ex.Message}");
+                }
             });
 
             lock (_lock)
             {
+                // 清理旧服务对应的 monitors
+                var removedServiceIds = _services.Keys.Except(services.Keys).ToList();
+                foreach (var serviceId in removedServiceIds)
+                {
+                    if (_monitors.TryGetValue(serviceId, out var monitor))
+                    {
+                        monitor.Dispose();
+                        _monitors.Remove(serviceId);
+                    }
+                }
+                
                 _services = services;
             }
         }

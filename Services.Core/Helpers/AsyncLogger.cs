@@ -6,12 +6,13 @@ using System.Threading.Tasks;
 
 namespace Services.Core.Helpers
 {
-    public class AsyncLogger : IDisposable
+    public class AsyncLogger : IAsyncDisposable, IDisposable
     {
         private readonly string _logPath;
         private readonly BlockingCollection<string> _logQueue = new BlockingCollection<string>();
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
         private readonly Task _writeTask;
+        private bool _disposed;
 
         public AsyncLogger(string logPath)
         {
@@ -21,9 +22,16 @@ namespace Services.Core.Helpers
 
         public void Log(string message)
         {
-            if (!_cts.IsCancellationRequested)
+            if (!_cts.IsCancellationRequested && !_disposed)
             {
-                _logQueue.Add($"[{DateTime.Now:HH:mm:ss}] {message}");
+                try
+                {
+                    _logQueue.Add($"[{DateTime.Now:HH:mm:ss}] {message}");
+                }
+                catch (InvalidOperationException)
+                {
+                    // Queue已关闭，忽略
+                }
             }
         }
 
@@ -44,23 +52,62 @@ namespace Services.Core.Helpers
             {
                 // Normal shutdown
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Fallback or ignore
+                System.Diagnostics.Debug.WriteLine($"AsyncLogger ProcessQueue error: {ex.Message}");
             }
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (_disposed) return;
+            
+            _disposed = true;
+            _cts.Cancel();
+            _logQueue.CompleteAdding();
+            
+            try
+            {
+                await _writeTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected during cancellation
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"AsyncLogger DisposeAsync error: {ex.Message}");
+            }
+            
+            _cts.Dispose();
+            _logQueue.Dispose();
         }
 
         public void Dispose()
         {
+            if (_disposed) return;
+            
+            _disposed = true;
             _cts.Cancel();
             _logQueue.CompleteAdding();
+            
             try
             {
                 _writeTask.Wait(TimeSpan.FromSeconds(2));
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"AsyncLogger Dispose error: {ex.Message}");
+            }
+            
             _cts.Dispose();
             _logQueue.Dispose();
+            GC.SuppressFinalize(this);
+        }
+
+        ~AsyncLogger()
+        {
+            Dispose();
         }
     }
 }

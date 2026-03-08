@@ -17,6 +17,7 @@
         <Grid.Resources>
             <local:StatusColorConverter x:Key="StatusColorConverter" />
             <local:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+            <local:DateTimeFormatConverter x:Key="DateTimeFormatConverter" />
             
             <Style x:Key="CardStyle" TargetType="Grid">
                 <Setter Property="Background" Value="{ThemeResource LayerFillColorDefaultBrush}"/>
@@ -158,7 +159,19 @@
                             
                             <!-- Name & ID -->
                             <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding Name}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding Name}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis">
+                                    <ToolTipService.ToolTip>
+                                        <ToolTip>
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                                                <TextBlock>
+                                                    <Run Text="创建时间: "/>
+                                                    <Run Text="{Binding CreatedAt, Converter={StaticResource DateTimeFormatConverter}}" FontFamily="Consolas"/>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </ToolTip>
+                                    </ToolTipService.ToolTip>
+                                </TextBlock>
                                 <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
                                     <Border Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" CornerRadius="4" Padding="6,2">
                                         <TextBlock Text="{Binding Id}" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.7" FontSize="11" FontFamily="Consolas"/>

@@ -15,7 +15,7 @@ namespace ServicesApp
     {
         private readonly LogManager _logManager;
         private readonly string _serviceId;
-        private readonly DispatcherTimer _timer;
+        private DispatcherTimer? _timer;
         private AppWindow _appWindow;
 
         private ObservableCollection<string> _logEntries = new();
@@ -44,7 +44,7 @@ namespace ServicesApp
             _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
             _timer.Tick += OnTimerTick;
 
-            this.Closed += (s, e) => _timer.Stop();
+            this.Closed += OnWindowClosed;
 
             LoadLog(true);
             _timer.Start();
@@ -53,6 +53,17 @@ namespace ServicesApp
         private void OnTimerTick(object? sender, object e)
         {
             LoadLog(false);
+        }
+
+        private void OnWindowClosed(object sender, WindowEventArgs e)
+        {
+            if (_timer != null)
+            {
+                _timer.Tick -= OnTimerTick;
+                _timer.Stop();
+                _timer = null;
+            }
+            this.Closed -= OnWindowClosed;
         }
 
         private void LoadLog(bool forceReload)
