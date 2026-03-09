@@ -70,7 +70,7 @@
                 <Button x:Name="OpenFolderButton" Click="OnOpenFolderClick" ToolTipService.ToolTip="打开所在文件夹">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon Glyph="&#xE8B7;" FontSize="12"/>
-                        <TextBlock Text="打开文件夹"/>
+                        <TextBlock Text="打开日志文件"/>
                     </StackPanel>
                 </Button>
                 <Button Click="OnCloseClick" Style="{StaticResource AccentButtonStyle}">

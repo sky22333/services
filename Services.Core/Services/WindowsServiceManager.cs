@@ -328,62 +328,68 @@ namespace Services.Core.Services
         }
 
         public async Task DeleteServiceAsync(string serviceId)
-        {
-            lock (_lock)
-            {
-                if (!_services.ContainsKey(serviceId)) throw new Exception("Service not found");
-                
-                // 清理 monitor
-                if (_monitors.TryGetValue(serviceId, out var monitor))
                 {
-                    monitor.Dispose();
-                    _monitors.Remove(serviceId);
+                    lock (_lock)
+                    {
+                        if (!_services.ContainsKey(serviceId)) throw new Exception("Service not found");
+
+                        // 清理 monitor
+                        if (_monitors.TryGetValue(serviceId, out var monitor))
+                        {
+                            monitor.Dispose();
+                            _monitors.Remove(serviceId);
+                        }
+                    }
+
+                    await StopServiceAsync(serviceId);
+
+                    // Use P/Invoke to delete service
+                    IntPtr scmHandle = ServiceUtils.OpenSCManager(null, null, ServiceUtils.SC_MANAGER_CONNECT);
+                    if (scmHandle == IntPtr.Zero)
+                        throw new Exception($"Failed to open SC Manager. Error: {Marshal.GetLastWin32Error()}");
+
+                    try
+                    {
+                        // We need DELETE access
+                        IntPtr serviceHandle = ServiceUtils.OpenService(scmHandle, serviceId, ServiceUtils.DELETE);
+                        if (serviceHandle == IntPtr.Zero)
+                            throw new Exception($"Failed to open service for deletion. Error: {Marshal.GetLastWin32Error()}");
+
+                        try
+                        {
+                            if (!ServiceUtils.DeleteService(serviceHandle))
+                                throw new Exception($"Failed to delete service. Error: {Marshal.GetLastWin32Error()}");
+                        }
+                        finally
+                        {
+                            ServiceUtils.CloseServiceHandle(serviceHandle);
+                        }
+                    }
+                    finally
+                    {
+                        ServiceUtils.CloseServiceHandle(scmHandle);
+                    }
+
+                    // Remove from managed services index
+                    RemoveFromManagedServicesIndex(serviceId);
+
+                    // Clean up registry Parameters subkey
+                    try
+                    {
+                        using var key = Registry.LocalMachine.OpenSubKey($@"SYSTEM\CurrentControlSet\Services\{serviceId}", writable: true);
+                        key?.DeleteSubKeyTree("Parameters", throwOnMissingSubKey: false);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Failed to delete Parameters registry key: {ex.Message}");
+                    }
+
+                    lock (_lock)
+                    {
+                        _services.Remove(serviceId);
+                    }
                 }
-            }
 
-            await StopServiceAsync(serviceId);
-
-            // Use P/Invoke to delete service
-            IntPtr scmHandle = ServiceUtils.OpenSCManager(null, null, ServiceUtils.SC_MANAGER_CONNECT);
-            if (scmHandle == IntPtr.Zero)
-                throw new Exception($"Failed to open SC Manager. Error: {Marshal.GetLastWin32Error()}");
-
-            try
-            {
-                // We need DELETE access
-                IntPtr serviceHandle = ServiceUtils.OpenService(scmHandle, serviceId, ServiceUtils.DELETE);
-                if (serviceHandle == IntPtr.Zero)
-                    throw new Exception($"Failed to open service for deletion. Error: {Marshal.GetLastWin32Error()}");
-
-                try
-                {
-                    if (!ServiceUtils.DeleteService(serviceHandle))
-                        throw new Exception($"Failed to delete service. Error: {Marshal.GetLastWin32Error()}");
-                }
-                finally
-                {
-                    ServiceUtils.CloseServiceHandle(serviceHandle);
-                }
-            }
-            finally
-            {
-                ServiceUtils.CloseServiceHandle(scmHandle);
-            }
-            
-            // Remove from managed services index
-            RemoveFromManagedServicesIndex(serviceId);
-
-            lock (_lock)
-            {
-                _services.Remove(serviceId);
-                
-                // 再次确保 monitor 已清理
-                if (_monitors.ContainsKey(serviceId))
-                {
-                    _monitors.Remove(serviceId);
-                }
-            }
-        }
 
         private void AddToManagedServicesIndex(string serviceName)
         {
