@@ -18,6 +18,9 @@ namespace Services.Core.Services
         private bool _autoRestart = false;
         private int _restartDelayMs = 5000;
         private bool _isStopping = false;
+        private int _restartCount = 0;
+        private DateTime _lastRestartTime = DateTime.MinValue;
+        private const int MaxRestarts = 5;
 
         public EmbeddedServiceWrapper(string serviceName)
         {
@@ -82,6 +85,9 @@ namespace Services.Core.Services
                     _logger?.Log($"Error stopping process: {ex.Message}");
                 }
             }
+
+            _process?.Dispose();
+            _process = null;
 
             _logger?.Dispose();
             _logger = null;
@@ -157,6 +163,8 @@ namespace Services.Core.Services
         {
             try
             {
+                _process?.Dispose();
+
                 var psi = new ProcessStartInfo
                 {
                     FileName = config.ExePath,
@@ -184,31 +192,58 @@ namespace Services.Core.Services
                 _process.EnableRaisingEvents = true;
                 _process.Exited += (s, e) =>
                 {
-                    _logger?.Log($"Target process exited with code: {_process.ExitCode}");
+                    int exitCode = _process.ExitCode;
+                    _logger?.Log($"Process exited (code: {exitCode})");
 
                     if (_isStopping) return;
 
-                    if (_autoRestart)
+                    if (!_autoRestart || exitCode == 0)
                     {
-                        _logger?.Log($"Auto-restart enabled. Restarting in {_restartDelayMs}ms...");
-                        Task.Delay(_restartDelayMs).ContinueWith(_ =>
-                        {
-                            if (!_isStopping) StartTargetProcess(config);
-                        });
-                    }
-                    else
-                    {
+                        _logger?.Log(exitCode == 0 ? "Normal exit, not restarting" : "AutoRestart disabled");
                         Stop();
+                        return;
                     }
+
+                    if ((DateTime.Now - _lastRestartTime).TotalMinutes > 10)
+                        _restartCount = 0;
+
+                    if (++_restartCount > MaxRestarts)
+                    {
+                        _logger?.Log($"Max restarts ({MaxRestarts}) exceeded. Stopping.");
+                        Stop();
+                        return;
+                    }
+
+                    int delay = _restartDelayMs << Math.Min(_restartCount - 1, 4);
+                    _lastRestartTime = DateTime.Now;
+
+                    _logger?.Log($"Restart {_restartCount}/{MaxRestarts} in {delay}ms");
+                    Task.Delay(delay).ContinueWith(_ =>
+                    {
+                        if (!_isStopping) StartTargetProcess(config);
+                    });
                 };
             }
             catch (Exception ex)
             {
-                _logger?.Log($"CRITICAL: Failed to start target process. {ex.Message}");
+                _logger?.Log($"Failed to start: {ex.Message}");
 
                 if (!_autoRestart) throw;
 
-                Task.Delay(_restartDelayMs).ContinueWith(_ =>
+                if ((DateTime.Now - _lastRestartTime).TotalMinutes > 10)
+                    _restartCount = 0;
+
+                if (++_restartCount > MaxRestarts)
+                {
+                    _logger?.Log($"Max restarts ({MaxRestarts}) exceeded. Stopping.");
+                    throw;
+                }
+
+                int delay = _restartDelayMs << Math.Min(_restartCount - 1, 4);
+                _lastRestartTime = DateTime.Now;
+
+                _logger?.Log($"Retry {_restartCount}/{MaxRestarts} in {delay}ms");
+                Task.Delay(delay).ContinueWith(_ =>
                 {
                     if (!_isStopping) StartTargetProcess(config);
                 });
