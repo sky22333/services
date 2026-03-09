@@ -74,7 +74,7 @@ namespace Services.Core.Services
             {
                 try
                 {
-                    _process.Kill(true); // Kill entire process tree
+                    _process.Kill(true);
                     _process.WaitForExit(5000);
                 }
                 catch (Exception ex)
@@ -83,7 +83,6 @@ namespace Services.Core.Services
                 }
             }
 
-            // 同步释放 logger
             _logger?.Dispose();
             _logger = null;
         }
@@ -207,8 +206,6 @@ namespace Services.Core.Services
             {
                 _logger?.Log($"CRITICAL: Failed to start target process. {ex.Message}");
 
-                // Critical Fix: Throw exception to signal SCM that startup failed.
-                // This allows Service Control Manager to restart the service if configured.
                 if (!_autoRestart) throw;
 
                 Task.Delay(_restartDelayMs).ContinueWith(_ =>

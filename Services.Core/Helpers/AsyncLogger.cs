@@ -30,7 +30,6 @@ namespace Services.Core.Helpers
                 }
                 catch (InvalidOperationException)
                 {
-                    // Queue已关闭，忽略
                 }
             }
         }
@@ -50,7 +49,6 @@ namespace Services.Core.Helpers
             }
             catch (OperationCanceledException)
             {
-                // Normal shutdown
             }
             catch (Exception ex)
             {
@@ -72,7 +70,6 @@ namespace Services.Core.Helpers
             }
             catch (OperationCanceledException)
             {
-                // Expected during cancellation
             }
             catch (Exception ex)
             {

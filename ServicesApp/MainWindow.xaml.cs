@@ -40,21 +40,17 @@ namespace ServicesApp
             var hWnd = WindowNative.GetWindowHandle(this);
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hWnd);
             _appWindow = AppWindow.GetFromWindowId(windowId);
-            _appWindow.Resize(new Windows.Graphics.SizeInt32(1800, 1200));
+            
+            SetAdaptiveWindowSize();
 
-            // Hide window instead of closing
             _appWindow.Closing += OnAppWindowClosing;
-
-            // Handle Minimize/Restore events to optimize resource usage
             _appWindow.Changed += OnAppWindowChanged;
 
             _serviceManager = new WindowsServiceManager();
             _serviceManager.ServiceUpdated += OnServiceUpdated;
-
             _envManager = new EnvironmentManager();
             _logManager = new LogManager();
 
-            // Perform initialization after the window is loaded to improve startup performance
             this.Activated += OnWindowActivated;
 
             Title = "ServicesApp";
@@ -73,11 +69,7 @@ namespace ServicesApp
         private async void OnWindowActivated(object sender, WindowActivatedEventArgs args)
         {
             this.Activated -= OnWindowActivated;
-
-            // Initialize tray icon first as it's UI related
             InitializeTrayIcon();
-
-            // Load full configuration ONCE on startup
             await _serviceManager.InitializeAsync();
             LoadServices();
         }
@@ -118,7 +110,6 @@ namespace ServicesApp
 
         private void OnWindowClosed(object sender, WindowEventArgs args)
         {
-            // 解除所有事件订阅，防止内存泄漏
             if (_appWindow != null)
             {
                 _appWindow.Closing -= OnAppWindowClosing;
@@ -140,8 +131,45 @@ namespace ServicesApp
             }
             
             TrayIcon?.Dispose();
-            
             this.Closed -= OnWindowClosed;
+        }
+
+        private void SetAdaptiveWindowSize()
+        {
+            try
+            {
+                var displayArea = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Primary);
+                if (displayArea != null)
+                {
+                    var workArea = displayArea.WorkArea;
+                    
+                    int targetWidth = (int)(workArea.Width * 0.65);
+                    int targetHeight = (int)(workArea.Height * 0.70);
+                    
+                    const int MinWidth = 1000;
+                    const int MinHeight = 700;
+                    const int MaxWidth = 1600;
+                    const int MaxHeight = 1000;
+                    
+                    targetWidth = Math.Clamp(targetWidth, MinWidth, MaxWidth);
+                    targetHeight = Math.Clamp(targetHeight, MinHeight, MaxHeight);
+                    
+                    _appWindow.Resize(new Windows.Graphics.SizeInt32(targetWidth, targetHeight));
+                    
+                    int x = workArea.X + (workArea.Width - targetWidth) / 2;
+                    int y = workArea.Y + (workArea.Height - targetHeight) / 2;
+                    _appWindow.Move(new Windows.Graphics.PointInt32(x, y));
+                }
+                else
+                {
+                    _appWindow.Resize(new Windows.Graphics.SizeInt32(1200, 800));
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to set adaptive window size: {ex.Message}");
+                _appWindow.Resize(new Windows.Graphics.SizeInt32(1200, 800));
+            }
         }
 
         private void InitializeTrayIcon()
@@ -151,45 +179,28 @@ namespace ServicesApp
                 TrayIcon = new H.NotifyIcon.TaskbarIcon();
                 TrayIcon.ToolTipText = "ServicesApp";
 
-                // Use absolute path for icon
                 var iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "icon.ico");
                 if (System.IO.File.Exists(iconPath))
                 {
                     TrayIcon.IconSource = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(iconPath));
                 }
 
-                // Important: Add to visual tree FIRST to ensure it has a XamlRoot and Dispatcher
                 RootGrid.Children.Add(TrayIcon);
-
-                // Use SecondWindow mode to support context menu in unpackaged apps
-                // Optimization: Switch to PopupMenu mode to guarantee no scrollbars and native performance
                 TrayIcon.ContextMenuMode = H.NotifyIcon.ContextMenuMode.PopupMenu;
-                TrayIcon.NoLeftClickDelay = true; // Improve responsiveness
-
-                // Setup events
+                TrayIcon.NoLeftClickDelay = true;
                 TrayIcon.DoubleTapped += OnTrayIconDoubleTapped;
 
-                // Initialize Flyout
                 var flyout = new MenuFlyout();
 
-                // No manual style needed for PopupMenu mode
-                // flyout.Placement is ignored in PopupMenu mode
-
-                // Use XamlUICommand to ensure events are fired correctly in PopupMenu mode
                 var showCommand = new XamlUICommand();
                 showCommand.Label = "显示窗口";
                 showCommand.ExecuteRequested += (s, e) => ShowWindow();
-
                 var showItem = new MenuFlyoutItem { Text = "显示窗口", Command = showCommand };
 
                 var exitCommand = new XamlUICommand();
                 exitCommand.Label = "退出";
                 exitCommand.ExecuteRequested += (s, e) => RealExit();
-
                 var exitItem = new MenuFlyoutItem { Text = "退出", Command = exitCommand };
-
-                // Note: FontIcon is not supported in PopupMenu mode natively without bitmap conversion.
-                // Keeping it simple for now to ensure performance and no visual glitches.
 
                 flyout.Items.Add(showItem);
                 flyout.Items.Add(new MenuFlyoutSeparator());
@@ -238,8 +249,6 @@ namespace ServicesApp
         private async void LoadServices(bool silent = false)
         {
             if (_isLoadServicesRunning) return;
-
-            // Optimization: Do not refresh UI if window is hidden and this is an automated refresh
             if (silent && _appWindow != null && !_appWindow.IsVisible) return;
 
             _isLoadServicesRunning = true;
@@ -285,10 +294,9 @@ namespace ServicesApp
         private async void OnRefreshClick(object sender, RoutedEventArgs e)
         {
             UpdateStatus("正在刷新服务列表...");
-            await _serviceManager.InitializeAsync(); // Force reload from registry AND refresh status atomically
-            LoadServices(); // Load the now-complete data into UI
-            var count = Services.Count;
-            UpdateStatus($"已加载 {count} 个服务。");
+            await _serviceManager.InitializeAsync();
+            LoadServices();
+            UpdateStatus($"已加载 {Services.Count} 个服务。");
         }
 
         private void UpdateStatus(string message)

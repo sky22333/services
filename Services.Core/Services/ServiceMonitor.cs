@@ -89,7 +89,6 @@ namespace Services.Core.Services
 
             try
             {
-                // Use stackalloc to avoid heap allocation for small buffer
                 Span<byte> buffer = stackalloc byte[1024];
                 unsafe
                 {
@@ -211,7 +210,6 @@ namespace Services.Core.Services
         {
             _isMonitoring = false;
 
-            // 等待回调完成，防止资源泄漏
             if (_registeredWait != null)
             {
                 var waitHandle = new ManualResetEvent(false);
@@ -221,7 +219,6 @@ namespace Services.Core.Services
                 _registeredWait = null;
             }
 
-            // 使用 Dispose 而非 Close
             _notifyEvent?.Dispose();
             _notifyEvent = null;
 

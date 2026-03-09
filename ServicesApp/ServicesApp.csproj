@@ -26,13 +26,11 @@
 
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
     <DebugType>none</DebugType>
-    <!-- Disable Trimming to prevent COM Interop crashes -->
-    <PublishTrimmed>false</PublishTrimmed>
+    <PublishTrimmed>false</PublishTrimmed> <!-- Disabled: COM Interop compatibility -->
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <DebugSymbols>false</DebugSymbols>
-    <!-- Use Workstation GC (low memory) instead of Server GC -->
-    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ServerGarbageCollection>false</ServerGarbageCollection> <!-- Workstation GC: lower memory -->
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
   </PropertyGroup>
 

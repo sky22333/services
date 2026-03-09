@@ -48,10 +48,9 @@ namespace Services.Core.Services
                     if (stream.Length > 100 * 1024)
                     {
                         stream.Seek(-100 * 1024, SeekOrigin.End);
-                        // StreamReader buffers data, so we must seek BEFORE creating it.
                         using (var reader = new StreamReader(stream))
                         {
-                            await reader.ReadLineAsync(); // Discard partial line
+                            await reader.ReadLineAsync();
                             return "... (旧日志已截断) ...\n" + await reader.ReadToEndAsync();
                         }
                     }
