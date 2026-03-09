@@ -14,7 +14,6 @@ namespace Services.Core.Services
         private Process? _process;
         private string _serviceName;
         private AsyncLogger? _logger;
-        private int _retentionDays = 7;
         private bool _autoRestart = false;
         private int _restartDelayMs = 5000;
         private bool _isStopping = false;
@@ -33,13 +32,9 @@ namespace Services.Core.Services
             try
             {
                 var config = LoadConfig();
-
-                _retentionDays = LoadRetentionDays();
                 _autoRestart = LoadAutoRestart();
 
-                CleanupOldLogs();
                 InitLogger();
-
                 StartTargetProcess(config);
             }
             catch (Exception ex)
@@ -107,21 +102,6 @@ namespace Services.Core.Services
             return (exePath, args ?? "", workingDir ?? "");
         }
 
-        private int LoadRetentionDays()
-        {
-            try
-            {
-                using var key = Registry.LocalMachine.OpenSubKey($@"SYSTEM\CurrentControlSet\Services\{_serviceName}\Parameters");
-                if (key != null)
-                {
-                    var val = key.GetValue("LogRetentionDays");
-                    if (val is int days) return days;
-                }
-            }
-            catch { }
-            return 7;
-        }
-
         private bool LoadAutoRestart()
         {
             try
@@ -135,28 +115,6 @@ namespace Services.Core.Services
             }
             catch { }
             return false;
-        }
-
-        private void CleanupOldLogs()
-        {
-            var logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "windows_service_logs");
-            if (!Directory.Exists(logDir)) return;
-
-            try
-            {
-                var cutoffDate = DateTime.Now.AddDays(-_retentionDays);
-                var files = Directory.GetFiles(logDir, $"{_serviceName}_*.log");
-
-                foreach (var file in files)
-                {
-                    var info = new FileInfo(file);
-                    if (info.CreationTime < cutoffDate)
-                    {
-                        try { info.Delete(); } catch { }
-                    }
-                }
-            }
-            catch { }
         }
 
         private void StartTargetProcess((string ExePath, string Args, string WorkingDir) config)

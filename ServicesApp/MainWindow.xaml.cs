@@ -8,6 +8,7 @@ using Services.Core.Models;
 using System.Collections.ObjectModel;
 using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage.Pickers;
 using WinRT.Interop;
@@ -26,6 +27,8 @@ namespace ServicesApp
         private bool _isRealExit = false;
         private DispatcherTimer? _refreshTimer;
         private bool _isLoadServicesRunning = false;
+        private System.Threading.Timer? _logCleanupTimer;
+        private CancellationTokenSource? _cleanupCts;
 
         public ObservableCollection<Service> Services { get; } = new();
 
@@ -64,6 +67,16 @@ namespace ServicesApp
                 await _serviceManager.RefreshServiceStatusesAsync();
             };
             _refreshTimer.Start();
+
+            // Startup log cleanup
+            Task.Run(() =>
+            {
+                try { _logManager.CleanupOldLogs(LogManager.GetGlobalRetentionDays()); }
+                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Startup cleanup failed: {ex}"); }
+            });
+
+            // Daily cleanup at 2 AM
+            ScheduleDailyLogCleanup();
         }
 
         private async void OnWindowActivated(object sender, WindowActivatedEventArgs args)
@@ -123,6 +136,11 @@ namespace ServicesApp
             
             _refreshTimer?.Stop();
             _refreshTimer = null;
+
+            _logCleanupTimer?.Dispose();
+            _logCleanupTimer = null;
+            _cleanupCts?.Cancel();
+            _cleanupCts?.Dispose();
             
             if (_serviceManager != null)
             {
@@ -620,6 +638,35 @@ namespace ServicesApp
                     _refreshTimer.Stop();
                 }
             }
+        }
+
+        private void ScheduleDailyLogCleanup()
+        {
+            _cleanupCts = new CancellationTokenSource();
+            var token = _cleanupCts.Token;
+
+            var now = DateTime.Now;
+            var today2AM = now.Date.AddHours(2);
+            var nextRun = now > today2AM ? today2AM.AddDays(1) : today2AM;
+            var initialDelay = nextRun - now;
+
+            _logCleanupTimer = new System.Threading.Timer(
+                _ =>
+                {
+                    if (!token.IsCancellationRequested)
+                    {
+                        try 
+                        { 
+                            var days = LogManager.GetGlobalRetentionDays();
+                            _logManager.CleanupOldLogs(days); 
+                        }
+                        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Daily cleanup failed: {ex}"); }
+                    }
+                },
+                null,
+                initialDelay,
+                TimeSpan.FromDays(1)
+            );
         }
     }
 }

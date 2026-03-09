@@ -28,13 +28,24 @@ namespace Services.Core.Services
         {
             if (!Directory.Exists(LogDirectory)) return null;
 
-            var logFile = Directory.GetFiles(LogDirectory, $"{serviceName}_*.log")
-                                   .OrderByDescending(f => File.GetCreationTime(f))
-                                   .FirstOrDefault();
+            string? latestFile = null;
+            DateTime latestTime = DateTime.MinValue;
 
-            if (logFile != null) return logFile;
+            foreach (var file in Directory.EnumerateFiles(LogDirectory, $"{serviceName}_*.log"))
+            {
+                try
+                {
+                    var creationTime = File.GetCreationTime(file);
+                    if (creationTime > latestTime)
+                    {
+                        latestTime = creationTime;
+                        latestFile = file;
+                    }
+                }
+                catch { }
+            }
 
-            return null;
+            return latestFile;
         }
 
         public async Task<string> ReadLogAsync(string? logPath)
@@ -74,16 +85,14 @@ namespace Services.Core.Services
             try
             {
                 var cutoffDate = DateTime.Now.AddDays(-retentionDays);
-                var files = Directory.GetFiles(LogDirectory, "*.log");
 
-                foreach (var file in files)
+                foreach (var file in Directory.EnumerateFiles(LogDirectory, "*.log"))
                 {
                     try
                     {
-                        var fileInfo = new FileInfo(file);
-                        if (fileInfo.CreationTime < cutoffDate)
+                        if (File.GetCreationTime(file) < cutoffDate)
                         {
-                            fileInfo.Delete();
+                            File.Delete(file);
                         }
                     }
                     catch (Exception ex)
