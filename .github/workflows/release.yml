@@ -40,12 +40,34 @@ jobs:
       run: |
         Compress-Archive -Path * -DestinationPath ../ServicesApp-win-x64.zip
 
+    - name: 生成提交日志 (Generate Changelog)
+      id: changelog
+      run: |
+        $tag = "${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}"
+        $prevTag = git describe --tags --abbrev=0 "$tag^" 2>$null
+        if ($prevTag) {
+          $commits = git log "$prevTag..$tag" --pretty=format:"- %s (%h)" --no-merges
+        } else {
+          $commits = git log --pretty=format:"- %s (%h)" --no-merges -10
+        }
+        $changelog = $commits -join "`n"
+        if ([string]::IsNullOrWhiteSpace($changelog)) {
+          $changelog = "- 初始版本发布"
+        }
+        $changelog | Out-File -FilePath changelog.txt -Encoding utf8
+        echo "CHANGELOG<<EOF" >> $env:GITHUB_OUTPUT
+        echo $changelog >> $env:GITHUB_OUTPUT
+        echo "EOF" >> $env:GITHUB_OUTPUT
+
     - name: 创建 GitHub Release
       if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
       uses: softprops/action-gh-release@v1
       with:
         files: ServicesApp-win-x64.zip
-        generate_release_notes: true
+        body: |
+          ## 更新内容
+          
+          ${{ steps.changelog.outputs.CHANGELOG }}
         tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
         name: Release ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
         draft: false
