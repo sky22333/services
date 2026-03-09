@@ -474,12 +474,25 @@ namespace ServicesApp
 
             var stack = new StackPanel { Spacing = 15, Padding = new Thickness(0, 10, 0, 0) };
 
+            var infoStack = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
             var infoBlock = new TextBlock
             {
-                Text = "本应用用于管理系统后台服务。",
+                Text = "Windows后台服务管理工具",
                 TextWrapping = TextWrapping.Wrap,
-                Opacity = 0.8
+                Opacity = 0.8,
+                VerticalAlignment = VerticalAlignment.Center
             };
+            var githubLink = new HyperlinkButton
+            {
+                Content = "GitHub",
+                NavigateUri = new Uri("https://github.com/sky22333/services"),
+                Padding = new Thickness(8, 4, 8, 4),
+                VerticalAlignment = VerticalAlignment.Center,
+                FontSize = 12
+            };
+            ToolTipService.SetToolTip(githubLink, "访问 GitHub 仓库");
+            infoStack.Children.Add(infoBlock);
+            infoStack.Children.Add(githubLink);
 
             var retentionHeader = new TextBlock { Text = "日志保留策略", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) };
             var retentionStack = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
@@ -494,7 +507,7 @@ namespace ServicesApp
                 Header = "保留天数"
             };
 
-            stack.Children.Add(infoBlock);
+            stack.Children.Add(infoStack);
             stack.Children.Add(new MenuFlyoutSeparator());
             stack.Children.Add(retentionHeader);
             stack.Children.Add(retentionBox);
