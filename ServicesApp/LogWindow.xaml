@@ -52,7 +52,12 @@
                 </ListView.ItemContainerStyle>
                 <ListView.ItemTemplate>
                     <DataTemplate>
-                        <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        <TextBlock Text="{Binding}" 
+                                   FontFamily="Consolas" 
+                                   FontSize="12" 
+                                   TextWrapping="Wrap" 
+                                   IsTextSelectionEnabled="True"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                     </DataTemplate>
                 </ListView.ItemTemplate>
             </ListView>

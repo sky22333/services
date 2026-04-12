@@ -21,6 +21,8 @@ namespace ServicesApp
         private ObservableCollection<string> _logEntries = new();
         private long _lastPosition = 0;
         private string? _currentLogPath;
+        private const int MaxLogLines = 3000;
+        private ScrollViewer? _scrollViewer;
 
         public LogWindow(string serviceId, string displayName, LogManager logManager)
         {
@@ -72,7 +74,7 @@ namespace ServicesApp
             {
                 var path = _logManager.GetLatestLogPath(_serviceId);
 
-                // If log file changed (rotated) or force reload
+                // 文件轮转或强制刷新
                 if (path != _currentLogPath || forceReload)
                 {
                     _logEntries.Clear();
@@ -88,7 +90,7 @@ namespace ServicesApp
 
                 using var fs = new FileStream(_currentLogPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
 
-                // If file shrunk, it was truncated/rotated
+                // 文件被截断或轮转
                 if (fs.Length < _lastPosition)
                 {
                     _logEntries.Clear();
@@ -97,18 +99,24 @@ namespace ServicesApp
 
                 if (fs.Length > _lastPosition)
                 {
+                    bool shouldAutoScroll = IsScrolledToBottom();
+                    
                     fs.Seek(_lastPosition, SeekOrigin.Begin);
-                    using var reader = new StreamReader(fs);
+                    using var reader = new StreamReader(fs, System.Text.Encoding.UTF8);
 
                     string? line;
                     while ((line = reader.ReadLine()) != null)
                     {
                         _logEntries.Add(line);
+                        
+                        if (_logEntries.Count > MaxLogLines)
+                        {
+                            _logEntries.RemoveAt(0);
+                        }
                     }
                     _lastPosition = fs.Position;
 
-                    // Scroll to bottom
-                    if (_logEntries.Count > 0)
+                    if (shouldAutoScroll && _logEntries.Count > 0)
                     {
                         LogListView.ScrollIntoView(_logEntries.Last());
                     }
@@ -116,9 +124,42 @@ namespace ServicesApp
             }
             catch (Exception ex)
             {
-                // Ignore read errors (e.g. file locked)
                 System.Diagnostics.Debug.WriteLine($"Read log failed: {ex.Message}");
             }
+        }
+
+        private bool IsScrolledToBottom()
+        {
+            if (_scrollViewer == null)
+            {
+                _scrollViewer = FindVisualChild<ScrollViewer>(LogListView);
+            }
+            
+            if (_scrollViewer == null || _logEntries.Count == 0)
+            {
+                return true;
+            }
+            
+            return _scrollViewer.VerticalOffset >= _scrollViewer.ScrollableHeight - 10;
+        }
+
+        private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
+        {
+            for (int i = 0; i < Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
+                if (child is T result)
+                {
+                    return result;
+                }
+                
+                var childOfChild = FindVisualChild<T>(child);
+                if (childOfChild != null)
+                {
+                    return childOfChild;
+                }
+            }
+            return null;
         }
 
         private void OnRefreshClick(object sender, RoutedEventArgs e)

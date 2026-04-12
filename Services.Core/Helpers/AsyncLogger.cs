@@ -13,6 +13,7 @@ namespace Services.Core.Helpers
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
         private readonly Task _writeTask;
         private bool _disposed;
+        private const long MaxLogFileSize = 50 * 1024 * 1024;  // 50 MB
 
         public AsyncLogger(string logPath)
         {
@@ -26,7 +27,7 @@ namespace Services.Core.Helpers
             {
                 try
                 {
-                    _logQueue.Add($"[{DateTime.Now:HH:mm:ss}] {message}");
+                    _logQueue.Add(message);
                 }
                 catch (InvalidOperationException)
                 {
@@ -38,13 +39,40 @@ namespace Services.Core.Helpers
         {
             try
             {
-                using (var fs = new FileStream(_logPath, FileMode.Append, FileAccess.Write, FileShare.Read))
-                using (var writer = new StreamWriter(fs) { AutoFlush = true })
+                FileStream? fs = null;
+                StreamWriter? writer = null;
+                
+                try
                 {
                     foreach (var line in _logQueue.GetConsumingEnumerable(_cts.Token))
                     {
-                        writer.WriteLine(line);
+                        // 检查文件大小，超过限制则轮转
+                        if (fs == null || fs.Length > MaxLogFileSize)
+                        {
+                            writer?.Dispose();
+                            fs?.Dispose();
+                            
+                            // 生成新文件名
+                            string newLogPath = _logPath;
+                            if (fs != null && fs.Length > MaxLogFileSize)
+                            {
+                                var dir = Path.GetDirectoryName(_logPath) ?? "";
+                                var fileNameWithoutExt = Path.GetFileNameWithoutExtension(_logPath);
+                                var ext = Path.GetExtension(_logPath);
+                                newLogPath = Path.Combine(dir, $"{fileNameWithoutExt}_{DateTime.Now:HHmmss}{ext}");
+                            }
+                            
+                            fs = new FileStream(newLogPath, FileMode.Append, FileAccess.Write, FileShare.Read);
+                            writer = new StreamWriter(fs) { AutoFlush = true };
+                        }
+                        
+                        writer?.WriteLine(line);
                     }
+                }
+                finally
+                {
+                    writer?.Dispose();
+                    fs?.Dispose();
                 }
             }
             catch (OperationCanceledException)
