@@ -203,6 +203,7 @@ namespace Services.Core.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"NotifyCallback Error: {ex}");
+                StopMonitoring();
             }
         }
 

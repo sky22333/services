@@ -292,14 +292,24 @@ namespace Services.Core.Services
             }
 
             using var sc = new ServiceController(serviceId);
-            if (sc.Status != ServiceControllerStatus.Running)
+            if (sc.Status != ServiceControllerStatus.Running && 
+                sc.Status != ServiceControllerStatus.StartPending)
             {
                 sc.Start();
-                try
+                _ = Task.Run(async () =>
                 {
-                    sc.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(30));
-                }
-                catch (System.ServiceProcess.TimeoutException) { }
+                    try
+                    {
+                        await Task.Delay(100);
+                        await UpdateServiceStatusAsync(service);
+                        ServiceUpdated?.Invoke(this, service);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"StartServiceAsync error: {ex}");
+                    }
+                });
+                return;
             }
             await UpdateServiceStatusAsync(service);
             ServiceUpdated?.Invoke(this, service);

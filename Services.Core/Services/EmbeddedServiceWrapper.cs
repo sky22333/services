@@ -188,6 +188,15 @@ namespace Services.Core.Services
             {
                 _logger?.Log($"Failed to start: {ex.Message}");
 
+                // 处理文件不存在错误
+                if (ex is System.ComponentModel.Win32Exception win32Ex && 
+                    (win32Ex.NativeErrorCode == 2 || win32Ex.NativeErrorCode == 3))
+                {
+                    _logger?.Log("FATAL: Executable not found. Service stopped.");
+                    Stop();
+                    return;
+                }
+
                 if (!_autoRestart) throw;
 
                 if ((DateTime.Now - _lastRestartTime).TotalMinutes > 10)
