@@ -33,7 +33,14 @@ jobs:
 
     - name: 编译并发布 (Build & Publish)
       run: |
-        msbuild ServicesApp/ServicesApp.csproj /t:Publish /p:Configuration=Release /p:RuntimeIdentifier=win-x64 /p:PublishSingleFile=true /p:SelfContained=true /p:PublishDir=${{ github.workspace }}\publish\ /p:DebugType=none
+        msbuild ServicesApp/ServicesApp.csproj `
+          /t:Publish `
+          /p:Configuration=Release `
+          /p:RuntimeIdentifier=win-x64 `
+          /p:PublishSingleFile=true `
+          /p:SelfContained=true `
+          /p:PublishDir=${{ github.workspace }}\publish\ `
+          /p:DebugType=none
 
     - name: 打包发布文件 (Zip)
       working-directory: publish
@@ -43,24 +50,27 @@ jobs:
     - name: 生成提交日志 (Generate Changelog)
       id: changelog
       run: |
-        $tag = "${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}"
-        $prevTag = git describe --tags --abbrev=0 "$tag^" 2>$null
+        $prevTag = git describe --tags --abbrev=0 HEAD^ 2>$null
         if ($prevTag) {
-          $commits = git log "$prevTag..$tag" --pretty=format:"- %s (%h)" --no-merges
+          $commits = git log "$prevTag..HEAD" --pretty=format:"- %s (%h)" --no-merges
         } else {
-          $commits = git log --pretty=format:"- %s (%h)" --no-merges -10
+          $commits = git log --pretty=format:"- %s (%h)" --no-merges
         }
         $changelog = $commits -join "`n"
         if ([string]::IsNullOrWhiteSpace($changelog)) {
           $changelog = "- 初始版本发布"
         }
-        $changelog | Out-File -FilePath changelog.txt -Encoding utf8
         echo "CHANGELOG<<EOF" >> $env:GITHUB_OUTPUT
         echo $changelog >> $env:GITHUB_OUTPUT
         echo "EOF" >> $env:GITHUB_OUTPUT
+    
+    - name: 获取发布标签 (Get Release Tag)
+      id: tag
+      run: |
+        $tagName = "${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}"
+        echo "TAG_NAME=$tagName" >> $env:GITHUB_OUTPUT
 
     - name: 创建 GitHub Release
-      if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
       uses: softprops/action-gh-release@v1
       with:
         files: ServicesApp-win-x64.zip
@@ -68,7 +78,7 @@ jobs:
           ## 更新内容
           
           ${{ steps.changelog.outputs.CHANGELOG }}
-        tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
-        name: Release ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
+        tag_name: ${{ steps.tag.outputs.TAG_NAME }}
+        name: Release ${{ steps.tag.outputs.TAG_NAME }}
         draft: false
         prerelease: false
