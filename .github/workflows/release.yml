@@ -49,7 +49,7 @@ jobs:
           /p:Configuration=Release `
           /p:RuntimeIdentifier=win-x64 `
           /p:PublishSingleFile=false `
-          /p:SelfContained=true `
+          /p:SelfContained=false `
           /p:PublishDir=${{ github.workspace }}\publish-folder\ `
           /p:DebugType=none
 
@@ -60,6 +60,8 @@ jobs:
 
     - name: 打包文件夹版 (Zip Folder)
       run: |
+        New-Item -ItemType Directory -Force -Path publish-folder\Assets | Out-Null
+        Copy-Item -Path ServicesApp\Assets\icon.ico -Destination publish-folder\Assets\icon.ico -Force
         New-Item -ItemType Directory -Force -Path ServicesApp-win-x64-folder | Out-Null
         Copy-Item -Path publish-folder\* -Destination ServicesApp-win-x64-folder -Recurse -Force
         Compress-Archive -Path ServicesApp-win-x64-folder -DestinationPath ServicesApp-win-x64-folder.zip
