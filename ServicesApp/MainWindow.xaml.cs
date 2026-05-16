@@ -403,118 +403,98 @@ namespace ServicesApp
             logWindow.CenterOnScreen(_appWindow);
         }
 
-        private ContentDialog? _addServiceDialog;
-        private TextBox? _addSvcNameBox;
-        private TextBox? _addSvcExeBox;
-        private TextBox? _addSvcArgsBox;
-        private TextBox? _addSvcWorkDirBox;
-        private ComboBox? _addSvcStartupBox;
-        private CheckBox? _addSvcAutoRestartCheck;
-
         private async void OnAddServiceClick(object sender, RoutedEventArgs e)
         {
-            if (_addServiceDialog == null)
+            var addServiceDialog = new ContentDialog
             {
-                // Initialize dialog only once (High Performance / Low Memory)
-                _addServiceDialog = new ContentDialog
+                Title = "添加新服务",
+                PrimaryButtonText = "创建",
+                CloseButtonText = "取消",
+                XamlRoot = this.Content.XamlRoot
+            };
+
+            // Use Grid for compact layout (No redundancy)
+            var grid = new Grid { RowSpacing = 12, ColumnSpacing = 12 };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            // Name | Startup Type
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            var addSvcNameBox = new TextBox { Header = "服务名称 (仅字母数字)", PlaceholderText = "MyService" };
+            Grid.SetColumn(addSvcNameBox, 0); Grid.SetRow(addSvcNameBox, 0);
+
+            var addSvcStartupBox = new ComboBox { Header = "启动类型", HorizontalAlignment = HorizontalAlignment.Stretch };
+            addSvcStartupBox.Items.Add("开机自启");
+            addSvcStartupBox.Items.Add("手动启动");
+            Grid.SetColumn(addSvcStartupBox, 1); Grid.SetRow(addSvcStartupBox, 0);
+
+            // Exe Path | Browse Button
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            var addSvcExeBox = new TextBox { Header = "可执行文件路径", PlaceholderText = "C:\\Path\\To\\App.exe" };
+            Grid.SetColumn(addSvcExeBox, 0); Grid.SetRow(addSvcExeBox, 1);
+            Grid.SetColumnSpan(addSvcExeBox, 2);
+
+            // Args
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            var addSvcArgsBox = new TextBox { Header = "启动参数 (可选)", PlaceholderText = "--config config.json" };
+            Grid.SetColumn(addSvcArgsBox, 0); Grid.SetRow(addSvcArgsBox, 2);
+            Grid.SetColumnSpan(addSvcArgsBox, 2);
+
+            // WorkDir
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            var addSvcWorkDirBox = new TextBox { Header = "工作目录 (可选)", PlaceholderText = "默认为程序所在目录" };
+            Grid.SetColumn(addSvcWorkDirBox, 0); Grid.SetRow(addSvcWorkDirBox, 3);
+            Grid.SetColumnSpan(addSvcWorkDirBox, 2);
+
+            // Auto Restart & Browse Button
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            var addSvcAutoRestartCheck = new CheckBox { Content = "失败自动重启", IsChecked = false, VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetColumn(addSvcAutoRestartCheck, 0); Grid.SetRow(addSvcAutoRestartCheck, 4);
+
+            var browseBtn = new Button { Content = "📂 选择程序", HorizontalAlignment = HorizontalAlignment.Right };
+            Grid.SetColumn(browseBtn, 1); Grid.SetRow(browseBtn, 4);
+
+            // Add children
+            grid.Children.Add(addSvcNameBox);
+            grid.Children.Add(addSvcStartupBox);
+            grid.Children.Add(addSvcExeBox);
+            grid.Children.Add(addSvcArgsBox);
+            grid.Children.Add(addSvcWorkDirBox);
+            grid.Children.Add(addSvcAutoRestartCheck);
+            grid.Children.Add(browseBtn);
+
+            // Events
+            browseBtn.Click += (s, args) =>
+            {
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                var pickedPath = Win32Helper.PickFile(hwnd, "选择可执行文件");
+                if (pickedPath != null)
                 {
-                    Title = "添加新服务",
-                    PrimaryButtonText = "创建",
-                    CloseButtonText = "取消",
-                    XamlRoot = this.Content.XamlRoot
-                };
-
-                // Use Grid for compact layout (No redundancy)
-                var grid = new Grid { RowSpacing = 12, ColumnSpacing = 12 };
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                
-                // Name | Startup Type
-                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-                
-                _addSvcNameBox = new TextBox { Header = "服务名称 (仅字母数字)", PlaceholderText = "MyService" };
-                Grid.SetColumn(_addSvcNameBox, 0); Grid.SetRow(_addSvcNameBox, 0);
-
-                _addSvcStartupBox = new ComboBox { Header = "启动类型", HorizontalAlignment = HorizontalAlignment.Stretch };
-                _addSvcStartupBox.Items.Add("开机自启");
-                _addSvcStartupBox.Items.Add("手动启动");
-                Grid.SetColumn(_addSvcStartupBox, 1); Grid.SetRow(_addSvcStartupBox, 0);
-
-                // Exe Path | Browse Button
-                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-                
-                _addSvcExeBox = new TextBox { Header = "可执行文件路径", PlaceholderText = "C:\\Path\\To\\App.exe" };
-                Grid.SetColumn(_addSvcExeBox, 0); Grid.SetRow(_addSvcExeBox, 1);
-                Grid.SetColumnSpan(_addSvcExeBox, 2);
-                
-                // Args
-                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-                _addSvcArgsBox = new TextBox { Header = "启动参数 (可选)", PlaceholderText = "--config config.json" };
-                Grid.SetColumn(_addSvcArgsBox, 0); Grid.SetRow(_addSvcArgsBox, 2);
-                Grid.SetColumnSpan(_addSvcArgsBox, 2);
-
-                // WorkDir
-                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-                _addSvcWorkDirBox = new TextBox { Header = "工作目录 (可选)", PlaceholderText = "默认为程序所在目录" };
-                Grid.SetColumn(_addSvcWorkDirBox, 0); Grid.SetRow(_addSvcWorkDirBox, 3);
-                Grid.SetColumnSpan(_addSvcWorkDirBox, 2);
-
-                // Auto Restart & Browse Button
-                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-                
-                _addSvcAutoRestartCheck = new CheckBox { Content = "失败自动重启", IsChecked = false, VerticalAlignment = VerticalAlignment.Center };
-                Grid.SetColumn(_addSvcAutoRestartCheck, 0); Grid.SetRow(_addSvcAutoRestartCheck, 4);
-
-                var browseBtn = new Button { Content = "📂 选择程序", HorizontalAlignment = HorizontalAlignment.Right };
-                Grid.SetColumn(browseBtn, 1); Grid.SetRow(browseBtn, 4);
-                
-                // Add children
-                grid.Children.Add(_addSvcNameBox);
-                grid.Children.Add(_addSvcStartupBox);
-                grid.Children.Add(_addSvcExeBox);
-                grid.Children.Add(_addSvcArgsBox);
-                grid.Children.Add(_addSvcWorkDirBox);
-                grid.Children.Add(_addSvcAutoRestartCheck);
-                grid.Children.Add(browseBtn);
-
-                // Events
-                browseBtn.Click += (s, args) =>
-                {
-                    var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
-                    var pickedPath = Win32Helper.PickFile(hwnd, "选择可执行文件");
-                    if (pickedPath != null)
+                    addSvcExeBox.Text = pickedPath;
+                    if (string.IsNullOrWhiteSpace(addSvcWorkDirBox.Text))
                     {
-                        _addSvcExeBox.Text = pickedPath;
-                        if (string.IsNullOrWhiteSpace(_addSvcWorkDirBox.Text))
-                        {
-                            _addSvcWorkDirBox.Text = System.IO.Path.GetDirectoryName(pickedPath) ?? "";
-                        }
+                        addSvcWorkDirBox.Text = System.IO.Path.GetDirectoryName(pickedPath) ?? "";
                     }
-                };
+                }
+            };
 
-                // Wrap in ScrollViewer but HIDE scrollbars (Clean UI)
-                var scrollViewer = new ScrollViewer 
-                { 
-                    VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, // Hidden but scrollable
-                    Content = grid
-                };
+            // Wrap in ScrollViewer but HIDE scrollbars (Clean UI)
+            var scrollViewer = new ScrollViewer
+            {
+                VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, // Hidden but scrollable
+                Content = grid
+            };
 
-                _addServiceDialog.Content = scrollViewer;
-            }
+            addServiceDialog.Content = scrollViewer;
+            addSvcStartupBox.SelectedIndex = 0;
 
-            // Reset state
-            _addSvcNameBox!.Text = "";
-            _addSvcExeBox!.Text = "";
-            _addSvcArgsBox!.Text = "";
-            _addSvcWorkDirBox!.Text = "";
-            _addSvcStartupBox!.SelectedIndex = 0;
-            _addSvcAutoRestartCheck!.IsChecked = false;
-            _addServiceDialog.XamlRoot = this.Content.XamlRoot; // Ensure XamlRoot is current
-
-            var result = await _addServiceDialog.ShowAsync();
+            var result = await addServiceDialog.ShowAsync();
             if (result == ContentDialogResult.Primary)
             {
-                if (string.IsNullOrWhiteSpace(_addSvcNameBox.Text) || string.IsNullOrWhiteSpace(_addSvcExeBox.Text))
+                if (string.IsNullOrWhiteSpace(addSvcNameBox.Text) || string.IsNullOrWhiteSpace(addSvcExeBox.Text))
                 {
                     await ShowDialog("验证错误", "服务名称和可执行文件路径为必填项。");
                     return;
@@ -524,12 +504,12 @@ namespace ServicesApp
                 {
                     var config = new ServiceConfig
                     {
-                        Name = _addSvcNameBox.Text,
-                        ExePath = _addSvcExeBox.Text,
-                        Args = _addSvcArgsBox.Text,
-                        WorkingDir = _addSvcWorkDirBox.Text,
-                        AutoRestart = _addSvcAutoRestartCheck.IsChecked ?? false,
-                        StartupType = (ServiceStartupType)(_addSvcStartupBox.SelectedIndex + 2)
+                        Name = addSvcNameBox.Text,
+                        ExePath = addSvcExeBox.Text,
+                        Args = addSvcArgsBox.Text,
+                        WorkingDir = addSvcWorkDirBox.Text,
+                        AutoRestart = addSvcAutoRestartCheck.IsChecked ?? false,
+                        StartupType = (ServiceStartupType)(addSvcStartupBox.SelectedIndex + 2)
                     };
                     await _serviceManager.CreateServiceAsync(config);
                     LoadServices();
