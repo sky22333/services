@@ -26,9 +26,12 @@ namespace ServicesApp
         private AppWindow _appWindow;
         private bool _isRealExit = false;
         private DispatcherTimer? _refreshTimer;
+        private bool _isRefreshRunning = false;
         private bool _isLoadServicesRunning = false;
         private System.Threading.Timer? _logCleanupTimer;
         private CancellationTokenSource? _cleanupCts;
+        private static readonly TimeSpan VisibleRefreshInterval = TimeSpan.FromSeconds(2);
+        private static readonly TimeSpan HiddenRefreshInterval = TimeSpan.FromSeconds(30);
 
         public ObservableCollection<Service> Services { get; } = new();
 
@@ -60,11 +63,10 @@ namespace ServicesApp
 
             this.Closed += OnWindowClosed;
 
-            _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            _refreshTimer = new DispatcherTimer { Interval = VisibleRefreshInterval };
             _refreshTimer.Tick += async (s, e) =>
             {
-                // Lightweight status refresh only
-                await _serviceManager.RefreshServiceStatusesAsync();
+                await RefreshStatusesAsync();
             };
             _refreshTimer.Start();
 
@@ -680,23 +682,39 @@ namespace ServicesApp
             return result == ContentDialogResult.Primary;
         }
 
+        private async Task RefreshStatusesAsync()
+        {
+            if (_isRefreshRunning) return;
+
+            _isRefreshRunning = true;
+            try
+            {
+                await _serviceManager.RefreshServiceStatusesAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Refresh statuses failed: {ex}");
+            }
+            finally
+            {
+                _isRefreshRunning = false;
+            }
+        }
+
         private void UpdateTimerState(bool isVisible)
         {
+            if (_refreshTimer == null) return;
+
+            _refreshTimer.Interval = isVisible ? VisibleRefreshInterval : HiddenRefreshInterval;
+
+            if (!_refreshTimer.IsEnabled)
+            {
+                _refreshTimer.Start();
+            }
+
             if (isVisible)
             {
-                if (_refreshTimer != null && !_refreshTimer.IsEnabled)
-                {
-                    _refreshTimer.Start();
-                    // Refresh immediately when becoming visible to ensure fresh data
-                    _serviceManager.RefreshServiceStatusesAsync();
-                }
-            }
-            else
-            {
-                if (_refreshTimer != null && _refreshTimer.IsEnabled)
-                {
-                    _refreshTimer.Stop();
-                }
+                _ = RefreshStatusesAsync();
             }
         }
 

@@ -15,9 +15,9 @@ namespace Services.Core.Services
     public class WindowsServiceManager : IDisposable
     {
         private Dictionary<string, Service> _services = new();
-        private readonly Dictionary<string, ServiceMonitor> _monitors = new();
         public event EventHandler<Service>? ServiceUpdated;
         private readonly object _lock = new();
+        private const int MaxConcurrentStatusQueries = 8;
 
         public WindowsServiceManager()
         {
@@ -26,7 +26,6 @@ namespace Services.Core.Services
         public async Task InitializeAsync()
         {
             await LoadServicesAsync();
-            CleanupOrphanedMonitors();
         }
 
         public async Task<List<Service>> GetServicesAsync()
@@ -44,41 +43,17 @@ namespace Services.Core.Services
 
             if (servicesToUpdate.Count == 0) return;
 
-            var tasks = servicesToUpdate.Select(UpdateServiceStatusAsync);
-            await Task.WhenAll(tasks);
+            var options = new ParallelOptions { MaxDegreeOfParallelism = MaxConcurrentStatusQueries };
+            await Parallel.ForEachAsync(servicesToUpdate, options, async (service, _) =>
+            {
+                await UpdateServiceStatusAsync(service);
+            });
         }
 
         public Task<List<Service>> GetServicesSnapshotAsync()
         {
             lock (_lock)
             {
-                foreach (var service in _services.Values)
-                {
-                    if (!_monitors.ContainsKey(service.Id))
-                    {
-                        var serviceId = service.Id;
-                        var monitor = new ServiceMonitor(serviceId);
-                        monitor.StatusChanged += (s, e) =>
-                        {
-                            lock (_lock)
-                            {
-                                if (_services.TryGetValue(serviceId, out var trackedService))
-                                {
-                                    if (trackedService.Status != e.Status || trackedService.Pid != e.Pid)
-                                    {
-                                        trackedService.Status = e.Status;
-                                        trackedService.Pid = e.Pid;
-                                        trackedService.UpdatedAt = DateTime.Now;
-                                        ServiceUpdated?.Invoke(this, CloneService(trackedService));
-                                    }
-                                }
-                            }
-                        };
-                        monitor.StartMonitoring();
-                        _monitors[serviceId] = monitor;
-                    }
-                }
-
                 return Task.FromResult(_services.Values.Select(CloneService).ToList());
             }
         }
@@ -87,30 +62,9 @@ namespace Services.Core.Services
         {
             lock (_lock)
             {
-                foreach (var monitor in _monitors.Values)
-                {
-                    monitor.Dispose();
-                }
-                _monitors.Clear();
                 _services.Clear();
             }
             GC.SuppressFinalize(this);
-        }
-
-        private void CleanupOrphanedMonitors()
-        {
-            lock (_lock)
-            {
-                var orphanedKeys = _monitors.Keys.Except(_services.Keys).ToList();
-                foreach (var key in orphanedKeys)
-                {
-                    if (_monitors.TryGetValue(key, out var monitor))
-                    {
-                        monitor.Dispose();
-                        _monitors.Remove(key);
-                    }
-                }
-            }
         }
 
         private static Service CloneService(Service s)
@@ -137,7 +91,7 @@ namespace Services.Core.Services
             await Task.Run(() =>
             {
                 var (status, pid) = ServiceUtils.GetServiceStatus(service.Id);
-                
+
                 if (service.Status != status || service.Pid != pid)
                 {
                     service.Status = status;
@@ -342,13 +296,6 @@ namespace Services.Core.Services
                     lock (_lock)
                     {
                         if (!_services.ContainsKey(serviceId)) throw new Exception("Service not found");
-
-                        // 清理 monitor
-                        if (_monitors.TryGetValue(serviceId, out var monitor))
-                        {
-                            monitor.Dispose();
-                            _monitors.Remove(serviceId);
-                        }
                     }
 
                     await StopServiceAsync(serviceId);
@@ -472,16 +419,6 @@ namespace Services.Core.Services
 
             lock (_lock)
             {
-                var removedServiceIds = _services.Keys.Except(services.Keys).ToList();
-                foreach (var serviceId in removedServiceIds)
-                {
-                    if (_monitors.TryGetValue(serviceId, out var monitor))
-                    {
-                        monitor.Dispose();
-                        _monitors.Remove(serviceId);
-                    }
-                }
-                
                 _services = services;
             }
         }
