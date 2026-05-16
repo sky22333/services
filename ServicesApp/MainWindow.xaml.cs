@@ -27,6 +27,7 @@ namespace ServicesApp
         private bool _isRealExit = false;
         private DispatcherTimer? _refreshTimer;
         private bool _isRefreshRunning = false;
+        private bool _isVisibleRefreshMode = true;
         private bool _isLoadServicesRunning = false;
         private System.Threading.Timer? _logCleanupTimer;
         private CancellationTokenSource? _cleanupCts;
@@ -101,21 +102,9 @@ namespace ServicesApp
 
         private void OnAppWindowChanged(AppWindow sender, AppWindowChangedEventArgs args)
         {
-            if (args.DidPresenterChange)
-            {
-                var presenter = _appWindow.Presenter as OverlappedPresenter;
-                if (presenter != null)
-                {
-                    if (presenter.State == OverlappedPresenterState.Minimized)
-                    {
-                        UpdateTimerState(false);
-                    }
-                    else
-                    {
-                        UpdateTimerState(true);
-                    }
-                }
-            }
+            if (_appWindow.Presenter is not OverlappedPresenter presenter) return;
+
+            UpdateTimerState(presenter.State != OverlappedPresenterState.Minimized);
         }
 
         private void OnTrayIconDoubleTapped(object sender, RoutedEventArgs e)
@@ -684,7 +673,9 @@ namespace ServicesApp
         private void UpdateTimerState(bool isVisible)
         {
             if (_refreshTimer == null) return;
+            if (_isVisibleRefreshMode == isVisible && _refreshTimer.IsEnabled) return;
 
+            _isVisibleRefreshMode = isVisible;
             _refreshTimer.Interval = isVisible ? VisibleRefreshInterval : HiddenRefreshInterval;
 
             if (!_refreshTimer.IsEnabled)
