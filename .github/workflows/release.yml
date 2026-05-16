@@ -31,7 +31,7 @@ jobs:
     - name: 还原依赖 (Restore)
       run: msbuild Services.sln /t:Restore /p:Configuration=Release
 
-    - name: 编译并发布 (Build & Publish)
+    - name: 编译并发布单文件版 (Build & Publish Single File)
       run: |
         msbuild ServicesApp/ServicesApp.csproj `
           /t:Publish `
@@ -39,13 +39,30 @@ jobs:
           /p:RuntimeIdentifier=win-x64 `
           /p:PublishSingleFile=true `
           /p:SelfContained=true `
-          /p:PublishDir=${{ github.workspace }}\publish\ `
+          /p:PublishDir=${{ github.workspace }}\publish-single\ `
           /p:DebugType=none
 
-    - name: 打包发布文件 (Zip)
-      working-directory: publish
+    - name: 编译并发布文件夹版 (Build & Publish Folder)
+      run: |
+        msbuild ServicesApp/ServicesApp.csproj `
+          /t:Publish `
+          /p:Configuration=Release `
+          /p:RuntimeIdentifier=win-x64 `
+          /p:PublishSingleFile=false `
+          /p:SelfContained=true `
+          /p:PublishDir=${{ github.workspace }}\publish-folder\ `
+          /p:DebugType=none
+
+    - name: 打包单文件版 (Zip Single File)
+      working-directory: publish-single
       run: |
         Compress-Archive -Path * -DestinationPath ../ServicesApp-win-x64.zip
+
+    - name: 打包文件夹版 (Zip Folder)
+      run: |
+        New-Item -ItemType Directory -Force -Path ServicesApp-win-x64-folder | Out-Null
+        Copy-Item -Path publish-folder\* -Destination ServicesApp-win-x64-folder -Recurse -Force
+        Compress-Archive -Path ServicesApp-win-x64-folder -DestinationPath ServicesApp-win-x64-folder.zip
 
     - name: 生成提交日志 (Generate Changelog)
       id: changelog
@@ -73,7 +90,9 @@ jobs:
     - name: 创建 GitHub Release
       uses: softprops/action-gh-release@v1
       with:
-        files: ServicesApp-win-x64.zip
+        files: |
+          ServicesApp-win-x64.zip
+          ServicesApp-win-x64-folder.zip
         body: |
           ## 更新内容
           
