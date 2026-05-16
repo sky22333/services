@@ -560,7 +560,7 @@ namespace ServicesApp
             stack.Children.Add(new MenuFlyoutSeparator());
             stack.Children.Add(retentionHeader);
             stack.Children.Add(retentionBox);
-            stack.Children.Add(new TextBlock { Text = "注: 修改将在服务重启后生效。", FontSize = 12, Opacity = 0.6 });
+            stack.Children.Add(new TextBlock { Text = "修改后立即生效，过期日志会自动清理。", FontSize = 12, Opacity = 0.6 });
 
             dialog.Content = stack;
 
