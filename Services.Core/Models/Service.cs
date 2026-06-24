@@ -37,9 +37,12 @@ namespace Services.Core.Models
                 {
                     _pid = value;
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(HasPid));
                 }
             }
         }
+
+        public bool HasPid => Pid > 0;
 
         public bool AutoStart { get; set; }
         public bool AutoRestart { get; set; }

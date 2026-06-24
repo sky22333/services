@@ -1,7 +1,5 @@
 using System;
 using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.Win32;
 
 namespace Services.Core.Services
@@ -46,36 +44,6 @@ namespace Services.Core.Services
             }
 
             return latestFile;
-        }
-
-        public async Task<string> ReadLogAsync(string? logPath)
-        {
-            if (string.IsNullOrEmpty(logPath) || !File.Exists(logPath)) return "未找到日志文件。";
-
-            try
-            {
-                using (var stream = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                {
-                    if (stream.Length > 100 * 1024)
-                    {
-                        stream.Seek(-100 * 1024, SeekOrigin.End);
-                        using (var reader = new StreamReader(stream))
-                        {
-                            await reader.ReadLineAsync();
-                            return "... (旧日志已截断) ...\n" + await reader.ReadToEndAsync();
-                        }
-                    }
-
-                    using (var reader = new StreamReader(stream))
-                    {
-                        return await reader.ReadToEndAsync();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                return $"读取日志错误: {ex.Message}";
-            }
         }
 
         public void CleanupOldLogs(int retentionDays = DefaultRetentionDays)

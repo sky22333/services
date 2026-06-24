@@ -6,10 +6,7 @@ namespace ServicesApp
 {
     public static class Win32Helper
     {
-        [DllImport("user32.dll")]
-        public static extern IntPtr GetActiveWindow();
-
-        public static string? PickFile(IntPtr owner, string title, string filter = "Executable Files (*.exe)|*.exe|All Files (*.*)|*.*")
+        public static string? PickFile(IntPtr owner, string title)
         {
             var dialog = (IFileOpenDialog)new FileOpenDialog();
             try

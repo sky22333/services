@@ -176,7 +176,7 @@
                                     <Border Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" CornerRadius="4" Padding="6,2">
                                         <TextBlock Text="{Binding Id}" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.7" FontSize="11" FontFamily="Consolas"/>
                                     </Border>
-                                    <StackPanel Orientation="Horizontal" Spacing="4" Visibility="{Binding Pid, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel Orientation="Horizontal" Spacing="4" Visibility="{Binding HasPid, Converter={StaticResource BooleanToVisibilityConverter}}">
                                          <TextBlock Text="PID:" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.5" FontSize="11"/>
                                          <TextBlock Text="{Binding Pid}" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.5" FontSize="11"/>
                                     </StackPanel>
