@@ -42,29 +42,13 @@ jobs:
           /p:PublishDir=${{ github.workspace }}\publish-single\ `
           /p:DebugType=none
 
-    - name: 编译并发布文件夹版 (Build & Publish Folder)
-      run: |
-        msbuild ServicesApp/ServicesApp.csproj `
-          /t:Publish `
-          /p:Configuration=Release `
-          /p:RuntimeIdentifier=win-x64 `
-          /p:PublishSingleFile=false `
-          /p:SelfContained=false `
-          /p:PublishDir=${{ github.workspace }}\publish-folder\ `
-          /p:DebugType=none
+    - name: 编译安装包 (Build MSI)
+      run: msbuild Services.Installer/Services.Installer.wixproj /t:Build /p:Configuration=Release /p:Platform=x64
 
     - name: 打包单文件版 (Zip Single File)
       working-directory: publish-single
       run: |
         Compress-Archive -Path * -DestinationPath ../ServicesApp-win-x64.zip
-
-    - name: 打包文件夹版 (Zip Folder)
-      run: |
-        New-Item -ItemType Directory -Force -Path publish-folder\Assets | Out-Null
-        Copy-Item -Path ServicesApp\Assets\icon.ico -Destination publish-folder\Assets\icon.ico -Force
-        New-Item -ItemType Directory -Force -Path ServicesApp-win-x64-folder | Out-Null
-        Copy-Item -Path publish-folder\* -Destination ServicesApp-win-x64-folder -Recurse -Force
-        Compress-Archive -Path ServicesApp-win-x64-folder -DestinationPath ServicesApp-win-x64-folder.zip
 
     - name: 生成提交日志 (Generate Changelog)
       id: changelog
@@ -94,7 +78,7 @@ jobs:
       with:
         files: |
           ServicesApp-win-x64.zip
-          ServicesApp-win-x64-folder.zip
+          Services.Installer/bin/x64/Release/ServicesApp.msi
         body: |
           ## 更新内容
           

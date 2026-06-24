@@ -1,0 +1,30 @@
+<Project Sdk="WixToolset.Sdk/5.0.2">
+  <PropertyGroup>
+    <OutputName>ServicesApp</OutputName>
+    <OutputType>Package</OutputType>
+    <Platform>x64</Platform>
+    <Cultures>zh-CN</Cultures>
+    <DefineConstants>ProductVersion=$(Version);Manufacturer=$(Manufacturer)</DefineConstants>
+    <SuppressIces>ICE03</SuppressIces>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ServicesApp\ServicesApp.csproj"
+                      Publish="true"
+                      Properties="RuntimeIdentifier=win-x64;SelfContained=false;PublishSingleFile=false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <HarvestDirectory Include="obj\$(Platform)\$(Configuration)\publish\ServicesApp">
+      <ComponentGroupName>AppFiles</ComponentGroupName>
+      <DirectoryRefId>INSTALLFOLDER</DirectoryRefId>
+      <SuppressRootDirectory>true</SuppressRootDirectory>
+    </HarvestDirectory>
+    <BindPath Include="obj\$(Platform)\$(Configuration)\publish\ServicesApp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Heat" Version="5.0.2" />
+    <PackageReference Include="WixToolset.UI.wixext" Version="5.0.2" />
+  </ItemGroup>
+</Project>
