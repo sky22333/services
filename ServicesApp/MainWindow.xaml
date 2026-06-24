@@ -199,7 +199,7 @@
                                     <FontIcon Glyph="&#xE71A;" FontSize="14" Foreground="{ThemeResource SystemFillColorCriticalBrush}"/>
                                 </Button>
                                 <Button Click="OnLogsClick" Tag="{Binding Id}" ToolTipService.ToolTip="日志" Style="{StaticResource ActionIconButtonStyle}">
-                                    <FontIcon Glyph="&#xE9F9;" FontSize="14"/>
+                                    <FontIcon Glyph="&#xE8A5;" FontSize="14"/>
                                 </Button>
                                 <Button Click="OnDeleteClick" Tag="{Binding Id}" ToolTipService.ToolTip="删除" Style="{StaticResource ActionIconButtonStyle}">
                                     <FontIcon Glyph="&#xE74D;" FontSize="14" Foreground="{ThemeResource SystemFillColorCriticalBrush}"/>

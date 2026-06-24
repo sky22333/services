@@ -33,7 +33,7 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <FontIcon Glyph="&#xE9F9;" FontSize="14" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                <FontIcon Glyph="&#xE8A5;" FontSize="14" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                 <TextBlock x:Name="TitleText" Text="日志" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.8"/>
             </StackPanel>
         </Grid>
