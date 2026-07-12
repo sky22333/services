@@ -21,12 +21,12 @@ jobs:
 
     steps:
     - name: 检出代码 (Checkout)
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
       with:
         fetch-depth: 0
 
     - name: 配置 MSBuild
-      uses: microsoft/setup-msbuild@v2
+      uses: microsoft/setup-msbuild@v3
 
     - name: 还原依赖 (Restore)
       run: msbuild Services.sln /t:Restore /p:Configuration=Release
@@ -74,7 +74,7 @@ jobs:
         echo "TAG_NAME=$tagName" >> $env:GITHUB_OUTPUT
 
     - name: 创建 GitHub Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v3
       with:
         files: |
           ServicesApp-win-x64.zip
@@ -85,5 +85,3 @@ jobs:
           ${{ steps.changelog.outputs.CHANGELOG }}
         tag_name: ${{ steps.tag.outputs.TAG_NAME }}
         name: Release ${{ steps.tag.outputs.TAG_NAME }}
-        draft: false
-        prerelease: false
